@@ -1,0 +1,1913 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<title>Wellkind GPS</title>
+<meta name="theme-color" content="#15241B">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Wellkind GPS">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" href="icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&display=swap">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" crossorigin>
+<style>
+  :root {
+    /* Paleta Wellkind: dorado del logo + verde bosque */
+    --fondo: #101A14;
+    --panel: rgba(21, 36, 27, .94);
+    --campo: #1C2B21;
+    --verde: #E0AD4B;          /* color principal (dorado Wellkind) */
+    --verde-texto: #21180A;    /* texto sobre dorado */
+    --bosque: #15241B;
+    --tarjeta: #22362A;
+    --crema: #F6F1E6;
+    --gris: #AEB8AF;
+    --linea: #2C3E31;
+    --rojo: #E5534B;
+    --nav: 64px;
+    --sup: env(safe-area-inset-top, 0px);
+    --inf: env(safe-area-inset-bottom, 0px);
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; height: 100%; overflow: hidden; background: var(--fondo); color: #fff;
+    font-family: "Nunito", -apple-system, system-ui, "Segoe UI", Roboto, sans-serif; font-size: 16px; }
+  body { color: var(--crema); }
+  button { font: inherit; color: inherit; cursor: pointer; }
+  [hidden] { display: none !important; }
+  :focus-visible { outline: 2px solid var(--verde); outline-offset: 2px; }
+
+  /* ===== Mapa ===== */
+  #mapa { position: fixed; top: 0; left: 0; right: 0; bottom: calc(var(--nav) + var(--inf)); background: #111; }
+  .leaflet-container { font-family: inherit; }
+  .leaflet-top.leaflet-left { top: calc(62px + var(--sup)); }
+  .leaflet-control-scale-line { background: transparent; color: #fff; border-color: #fff;
+    text-shadow: 0 1px 2px #000; font-weight: 600; }
+  .leaflet-control-attribution { background: rgba(0,0,0,.45) !important; color: #ddd !important; font-size: 10px; }
+  .leaflet-control-attribution a { color: #ddd !important; }
+  .pin { background: none; border: none; }
+  .flecha-yo, .pin-reg { background: none; border: none; }
+  .flecha-yo svg { display: block; transition: transform .3s; filter: drop-shadow(0 1px 2px rgba(0,0,0,.55)); }
+  .pin-reg svg { display: block; filter: drop-shadow(0 1px 2px rgba(0,0,0,.5)); }
+
+  /* ===== Barra superior Wellkind ===== */
+  #barraSup { position: fixed; z-index: 500; top: calc(8px + var(--sup)); left: 10px; right: 10px;
+    display: flex; align-items: center; gap: 8px; pointer-events: none; }
+  #barraSup > * { pointer-events: auto; }
+  .marca { display: flex; align-items: center; gap: 8px; background: var(--panel); border-radius: 22px;
+    padding: 5px 12px 5px 5px; box-shadow: 0 3px 10px rgba(0,0,0,.35); }
+  .marca img { width: 32px; height: 32px; border-radius: 50%; background: #fff; }
+  .marca b { font-size: 15px; font-weight: 800; letter-spacing: .2px; }
+  .marca b span { color: var(--verde); }
+  .chips { margin-left: auto; display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+  .chip { display: flex; align-items: center; gap: 6px; background: var(--panel); border-radius: 18px; padding: 7px 11px;
+    font-size: 13px; font-weight: 700; box-shadow: 0 3px 10px rgba(0,0,0,.35); white-space: nowrap; }
+  .chip .punto { width: 9px; height: 9px; border-radius: 50%; background: #7E8A80; }
+  .chip.buena .punto { background: #3DB83A; } .chip.regular .punto { background: #F39C12; } .chip.mala .punto { background: #E5534B; }
+  .chip.pend { background: #E67E22; color: #fff; }
+
+  /* ===== Controles del mapa (derecha) ===== */
+  #colDer { position: fixed; z-index: 500; right: 12px; bottom: calc(var(--nav) + var(--inf) + 34px);
+    display: flex; flex-direction: column; background: var(--panel); border-radius: 14px; overflow: hidden;
+    box-shadow: 0 3px 10px rgba(0,0,0,.4); }
+  #colDer button { width: 50px; height: 50px; border: none; background: none; display: grid; place-items: center; }
+  #colDer button + button { border-top: 1px solid var(--linea); }
+  #colDer svg { width: 25px; height: 25px; fill: var(--crema); }
+
+  /* ===== Menú "Registrar" ===== */
+  #menuFab { position: fixed; z-index: 690; left: 50%; transform: translateX(-50%); bottom: calc(var(--nav) + var(--inf) + 22px);
+    width: min(320px, calc(100vw - 32px)); background: var(--panel); border-radius: 18px; overflow: hidden;
+    box-shadow: 0 6px 20px rgba(0,0,0,.5); }
+  #menuFab button { display: flex; align-items: center; gap: 14px; width: 100%; background: none; border: none;
+    border-bottom: 1px solid var(--linea); padding: 15px 18px; text-align: left; font-size: 16px; font-weight: 700; color: var(--crema); }
+  #menuFab button svg { width: 26px; height: 26px; fill: var(--verde); color: var(--verde); flex: none; }
+  #menuFab p { margin: 0; padding: 11px 18px 13px; color: var(--gris); font-size: 13px; line-height: 1.4; }
+
+
+  .redondo { width: 56px; height: 56px; border-radius: 50%; border: none; background: var(--panel);
+    display: grid; place-items: center; box-shadow: 0 3px 10px rgba(0,0,0,.45); }
+  .redondo svg { width: 26px; height: 26px; fill: #fff; }
+
+  /* Hoja "Ubicación marcada" */
+  #hoja { position: fixed; z-index: 600; left: 0; right: 0; bottom: calc(var(--nav) + var(--inf));
+    background: rgba(21,36,27,.97); border-radius: 20px 20px 0 0; padding: 10px 18px 16px; box-shadow: 0 -4px 16px rgba(0,0,0,.4); }
+  .agarradera { width: 44px; height: 4px; border-radius: 2px; background: #777; margin: 0 auto 12px; }
+  #hoja h2 { margin: 0; font-size: 22px; }
+  #hoja p { margin: 4px 0 0; color: var(--gris); font-size: 16px; }
+  #hoja .acciones { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 14px;
+    border-top: 1px solid var(--linea); padding-top: 14px; }
+  #hoja .acciones button { background: var(--tarjeta); border: none; border-radius: 8px; padding: 14px 4px;
+    color: var(--verde); font-weight: 700; font-size: 14px; display: flex; flex-direction: column; align-items: center; gap: 6px; }
+  #hoja .acciones svg { width: 30px; height: 30px; fill: var(--verde); }
+
+  /* Barra inferior */
+  #nav { position: fixed; z-index: 700; left: 0; right: 0; bottom: 0; height: calc(var(--nav) + var(--inf));
+    padding-bottom: var(--inf); background: var(--bosque); display: grid; grid-template-columns: repeat(5, 1fr);
+    border-top: 1px solid var(--linea); }
+  #nav #btnFab { position: relative; color: var(--verde); font-weight: 800; }
+  #nav #btnFab .circulo { width: 58px; height: 58px; margin-top: -26px; border-radius: 50%; background: var(--verde);
+    display: grid; place-items: center; box-shadow: 0 4px 12px rgba(0,0,0,.45); border: 4px solid var(--bosque); transition: transform .2s; }
+  #nav #btnFab .circulo svg { width: 30px; height: 30px; fill: var(--verde-texto); }
+  #nav #btnFab.abierto .circulo { transform: rotate(45deg); }
+  #nav button { background: none; border: none; color: #C2CCC4; font-size: 12px; font-weight: 600; display: flex;
+    flex-direction: column; align-items: center; justify-content: center; gap: 2px; }
+  #nav svg { width: 26px; height: 26px; fill: currentColor; }
+  #nav button.activo { color: var(--verde); }
+  .ico-nav { position: relative; display: inline-block; height: 26px; }
+  .insignia { position: absolute; top: -6px; right: -14px; min-width: 20px; height: 20px; padding: 0 5px; box-sizing: border-box;
+    border-radius: 10px; background: #E67E22; color: #fff; font-size: 11px; font-weight: 700; line-height: 16px;
+    text-align: center; border: 2px solid var(--bosque); }
+
+  /* ===== Vistas a pantalla completa ===== */
+  .vista { position: fixed; inset: 0; z-index: 650; background: var(--fondo); overflow-y: auto;
+    -webkit-overflow-scrolling: touch; padding-bottom: calc(var(--nav) + var(--inf) + 24px); }
+  .barra { position: sticky; top: 0; z-index: 2; display: flex; align-items: center; gap: 8px;
+    background: var(--bosque); padding: calc(10px + var(--sup)) 12px 10px; border-bottom: 1px solid var(--linea); }
+  .barra h1 { margin: 0; font-size: 19px; }
+  .volver { background: none; border: none; color: var(--verde); font-size: 17px; padding: 8px 6px; font-weight: 600; }
+  .cuerpo { max-width: 640px; margin: 0 auto; padding: 14px 18px; }
+  .cuerpo h2 { font-size: 17px; margin: 26px 0 6px; }
+  .estado { font-weight: 700; margin: 4px 0 0; }
+  .ayuda { color: var(--gris); font-size: 14px; margin: 4px 0 8px; line-height: 1.45; }
+  label { display: block; color: var(--gris); font-size: 14px; margin-top: 16px; }
+  input, textarea, select { display: block; width: 100%; margin-top: 4px; background: transparent; color: #fff;
+    border: none; border-bottom: 2px solid var(--verde); padding: 8px 2px; font-size: 18px; font-family: inherit; border-radius: 0; }
+  textarea { resize: vertical; }
+  input:disabled, textarea:disabled { color: #9a9a9a; border-bottom-color: #555; }
+  select { background: var(--campo); border-radius: 8px; border: 1px solid #444; padding: 10px; font-size: 16px; }
+  .dos { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .coord { display: grid; grid-template-columns: 96px 1fr; align-items: center; margin-top: 8px; }
+  .coord span { font-weight: 700; }
+  .coord input { font-size: 20px; margin-top: 0; }
+  .campo-error { color: var(--rojo); font-size: 13px; margin-top: 4px; }
+
+  .btn { display: block; width: 100%; border-radius: 8px; padding: 14px 12px; font-weight: 700; font-size: 16px; margin-top: 12px; border: none; }
+  .btn.primario { background: var(--verde); color: var(--verde-texto); margin-top: 28px; }
+  .btn.secundario { background: var(--tarjeta); color: #fff; }
+  .btn.contorno { background: none; border: 1.5px solid var(--verde); color: var(--verde); }
+  .btn.peligro { background: none; color: var(--rojo); }
+  .btn.texto { background: none; color: var(--gris); }
+
+  .fotos { display: flex; gap: 10px; overflow-x: auto; padding: 4px 0; }
+  .foto { position: relative; flex: none; width: 96px; height: 96px; border-radius: 8px; overflow: hidden; background: #333; }
+  .foto img { width: 100%; height: 100%; object-fit: cover; }
+  .foto button { position: absolute; top: 4px; right: 4px; width: 28px; height: 28px; border-radius: 50%;
+    border: none; background: rgba(0,0,0,.7); color: #fff; font-size: 16px; line-height: 28px; padding: 0; }
+
+  .lista-reg { list-style: none; margin: 16px 0 0; padding: 0; }
+  .lista-reg li { padding: 14px 4px; border-bottom: 1px solid var(--linea); cursor: pointer; }
+  .lista-reg b { display: block; font-size: 16px; }
+  .lista-reg span { display: block; color: var(--gris); font-size: 13px; margin-top: 2px; }
+  .lista-reg em { font-style: normal; font-weight: 700; font-size: 13px; }
+  .vacio { color: var(--gris); text-align: center; margin-top: 40px; line-height: 1.5; }
+
+  /* ===== Ventanas emergentes ===== */
+  .modal { position: fixed; inset: 0; z-index: 1000; background: rgba(0,0,0,.6); display: flex; align-items: flex-end; justify-content: center; }
+  .modal-caja { width: 100%; max-width: 640px; max-height: 88vh; display: flex; flex-direction: column; background: #17271D;
+    border-radius: 18px 18px 0 0; padding: 12px 18px calc(16px + var(--inf)); }
+  .modal-caja h3 { margin: 4px 0 12px; font-size: 19px; }
+  .lista-sel { list-style: none; margin: 10px 0 0; padding: 0; overflow-y: auto; flex: 1; min-height: 120px; }
+  .lista-sel li { padding: 12px 4px; border-bottom: 1px solid var(--linea); cursor: pointer; }
+  .lista-sel small { display: block; color: var(--gris); }
+  .opcion { display: flex; align-items: center; gap: 12px; width: 100%; background: none; border: none;
+    border-bottom: 1px solid var(--linea); padding: 15px 4px; text-align: left; font-size: 16px; }
+  .opcion .marca { width: 20px; color: var(--verde); font-weight: 700; }
+
+  /* ===== Editar el área (parcela) ===== */
+  #vistaParcela { position: fixed; inset: 0; z-index: 950; background: var(--fondo); }
+  .barra-par { position: absolute; top: 0; left: 0; right: 0; z-index: 3; display: flex; align-items: center; gap: 10px;
+    background: var(--bosque); padding: calc(10px + var(--sup)) 12px 10px; }
+  .barra-par h1 { flex: 1; margin: 0; text-align: center; font-size: 17px; }
+  .btn-borde { background: none; border: 1.5px solid var(--verde); color: var(--verde); border-radius: 6px; padding: 9px 14px; font-weight: 700; }
+  .btn-verde { background: var(--verde); border: none; color: var(--verde-texto); border-radius: 6px; padding: 10px 16px; font-weight: 700; }
+  #mapaParcela { position: absolute; left: 0; right: 0; top: calc(62px + var(--sup)); bottom: calc(46px + var(--inf)); background: #111; }
+  #parAyuda { position: absolute; z-index: 3; left: 12px; right: 12px; top: calc(72px + var(--sup)); background: var(--panel);
+    border-radius: 14px; padding: 12px 14px; font-size: 14px; line-height: 1.4; }
+  #parIzq { position: absolute; z-index: 3; left: 14px; bottom: calc(60px + var(--inf)); display: flex; flex-direction: column; gap: 12px; }
+  #parDer { position: absolute; z-index: 3; right: 14px; bottom: calc(60px + var(--inf)); display: flex; gap: 12px; }
+  .redondo.chico { width: 50px; height: 50px; }
+  #parEstado { position: absolute; z-index: 3; left: 0; right: 0; bottom: 0; height: calc(46px + var(--inf)); padding: 0 16px var(--inf);
+    display: flex; align-items: center; justify-content: space-between; gap: 10px; background: var(--fondo); }
+  #parGps { color: var(--gris); font-size: 12px; white-space: nowrap; }
+  #parTexto { font-weight: 800; font-size: 15px; text-align: right; line-height: 1.2; white-space: nowrap; }
+  #parTexto small { display: block; color: var(--gris); font-size: 12px; font-weight: 600; }
+  .vertice-caja, .medio-caja, .etiqueta-lado { background: none; border: none; display: flex; align-items: center; justify-content: center; }
+  .vertice { width: 20px; height: 20px; border-radius: 50%; background: #E0AD4B; border: 2.5px solid #fff; box-sizing: border-box; box-shadow: 0 1px 3px rgba(0,0,0,.5); }
+  .vertice-caja.activo .vertice { background: #FFD54F; transform: scale(1.45); }
+  .medio { width: 11px; height: 11px; border-radius: 50%; background: #E0AD4B; border: 1.5px solid #fff; }
+  .etiqueta-lado span { position: absolute; left: 0; top: 0; display: block; color: #fff; font-weight: 700; font-size: 13px;
+    white-space: nowrap; text-shadow: 0 0 3px #000, 0 0 3px #000; pointer-events: none; }
+
+  /* ===== Panel "Mapas" ===== */
+  .hoja-mapas { overflow-y: auto; }
+  .titulo-mapas { margin: 4px 0 14px; font-size: 26px; font-weight: 400; }
+  .botones-mapas { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding-bottom: 16px; border-bottom: 1px solid var(--linea); }
+  .botones-mapas button { background: var(--tarjeta); border: none; border-radius: 8px; padding: 14px 6px; color: var(--verde);
+    font-weight: 700; font-size: 14px; letter-spacing: .3px; display: flex; flex-direction: column; align-items: center; gap: 6px; line-height: 1.3; }
+  .botones-mapas svg { width: 34px; height: 34px; fill: var(--verde); }
+  .sub-mapas { margin: 16px 0 8px; font-size: 19px; }
+  .capa-item { display: flex; align-items: center; gap: 14px; width: 100%; background: none; border: 2px solid transparent;
+    border-radius: 10px; padding: 8px; text-align: left; margin-bottom: 6px; }
+  .capa-item.activa { background: #1F3320; border-color: var(--verde); }
+  .capa-item img { width: 68px; height: 68px; flex: none; border-radius: 6px; object-fit: cover; background: #2E3A2E; }
+  .capa-item b { display: block; font-size: 17px; }
+  .capa-item small { display: block; margin-top: 2px; color: var(--gris); font-size: 13px; }
+  .capa-item.activa small { color: var(--verde); }
+
+  /* ===== Puntos del polígono en el formulario ===== */
+  .lista-puntos { margin: 6px 0 4px; }
+  .fila-punto { display: grid; grid-template-columns: 74px 1fr 1fr; gap: 8px; align-items: center;
+    padding: 9px 2px; border-bottom: 1px solid var(--linea); font-size: 16px; font-variant-numeric: tabular-nums; }
+  .fila-punto b { color: var(--verde); font-weight: 800; }
+  .fila-punto.encabezado { padding: 4px 2px; font-size: 12px; font-weight: 800; color: var(--gris);
+    text-transform: uppercase; letter-spacing: .6px; border-bottom: 2px solid var(--verde); }
+
+  .tiles-area { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 10px; }
+  .tile { background: var(--tarjeta); border-radius: 10px; padding: 10px 4px; text-align: center; }
+  .tile b { display: block; font-size: 19px; font-weight: 800; color: var(--verde); font-variant-numeric: tabular-nums; }
+  .tile small { color: var(--gris); font-size: 12px; }
+
+  /* ===== Ajustes ===== */
+  .ajustes { overflow-y: auto; }
+  .ajustes h4 { margin: 20px 0 2px; color: var(--verde); font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: 1px; }
+  .ajustes label { margin-top: 10px; }
+  .opcion span b { display: block; font-weight: 700; }
+  .opcion span small { display: block; margin-top: 2px; color: var(--gris); font-size: 13px; font-weight: 400; }
+  .ajustes a { color: var(--verde); }
+
+  #toast { position: fixed; z-index: 1100; left: 50%; transform: translateX(-50%);
+    bottom: calc(var(--nav) + var(--inf) + 18px); max-width: 90vw; background: var(--tarjeta); color: #fff;
+    padding: 12px 18px; border-radius: 22px; font-size: 15px; box-shadow: 0 4px 14px rgba(0,0,0,.5); text-align: center; }
+</style>
+</head>
+<body>
+
+<!-- ===================== MAPA ===================== -->
+<div id="mapa"></div>
+
+<!-- Barra superior: marca Wellkind + chips de estado -->
+<div id="barraSup">
+  <div class="marca"><img src="icon-192.png" alt=""><b>Wellkind <span>GPS</span></b></div>
+  <div class="chips">
+    <div class="chip" id="chipGps"><span class="punto"></span>GPS <span id="tvPrecision">—</span></div>
+    <div class="chip" id="chipElev" hidden>Alt. <span id="tvElevacion">—</span></div>
+    <div class="chip pend" id="chipPend" hidden><span id="tvPendientes">0</span>&nbsp;por enviar</div>
+  </div>
+</div>
+
+<div id="colIzq"></div>
+
+<!-- Controles del mapa -->
+<div id="colDer">
+  <button id="btnCapas" aria-label="Capas del mapa"><svg viewBox="0 0 24 24"><path d="M11.99 18.54l-7.37-5.73L3 14.07l9 7 9-7-1.63-1.27-7.38 5.74zM12 16l7.36-5.73L21 9l-9-7-9 7 1.63 1.27L12 16z"/></svg></button>
+  <button id="btnCentrar" aria-label="Ir a mi ubicación"><svg viewBox="0 0 24 24"><path d="M12 2L4.5 20.29l.71.71L12 18l6.79 3 .71-.71z"/></svg></button>
+</div>
+
+<!-- Menú del botón Registrar -->
+<div id="menuFab" hidden>
+  <button id="opMiUbicacion"><svg viewBox="0 0 24 24"><path d="M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8zm8.94 3A8.99 8.99 0 0 0 13 3.06V1h-2v2.06A8.99 8.99 0 0 0 3.06 11H1v2h2.06A8.99 8.99 0 0 0 11 20.94V23h2v-2.06A8.99 8.99 0 0 0 20.94 13H23v-2h-2.06zM12 19a7 7 0 1 1 0-14 7 7 0 0 1 0 14z"/></svg>En mi ubicación</button>
+  <button id="opParcela"><svg viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" d="M5 6l12-3 4 10-8 8-9-5z"/><circle cx="5" cy="6" r="1.7"/><circle cx="17" cy="3" r="1.7"/><circle cx="21" cy="13" r="1.7"/><circle cx="13" cy="21" r="1.7"/><circle cx="4" cy="16" r="1.7"/></svg>Dibujar parcela</button>
+  <p>También puedes tocar tu ubicación o cualquier lugar del mapa.</p>
+</div>
+
+<div id="hoja" hidden>
+  <div class="agarradera"></div>
+  <h2>Ubicación marcada</h2>
+  <p id="puntoInfo"></p>
+  <p id="puntoCoords"></p>
+  <div class="acciones">
+    <button id="btnGuardarPunto">
+      <svg viewBox="0 0 24 24"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5a2.5 2.5 0 1 1 0-5 2.5 2.5 0 0 1 0 5z"/></svg>Guardar</button>
+    <button id="btnCompartir">
+      <svg viewBox="0 0 24 24"><path d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11A2.99 2.99 0 0 0 21 5a3 3 0 1 0-5.91.7L8.04 9.81A2.99 2.99 0 0 0 3 12a2.99 2.99 0 0 0 5.04 2.19l7.12 4.16c-.05.21-.08.43-.08.65A2.92 2.92 0 1 0 18 16.08z"/></svg>Compartir</button>
+    <button id="btnCerrarPunto">
+      <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>Cerrar</button>
+  </div>
+</div>
+
+<!-- ===================== FORMULARIO ===================== -->
+<section id="vistaForm" class="vista" hidden>
+  <header class="barra">
+    <button class="volver" id="formVolver">‹ Mapa</button>
+    <h1 id="formTitulo">Nuevo registro</h1>
+  </header>
+  <div class="cuerpo">
+    <p id="fEstado" class="estado"></p>
+
+    <h2>Beneficiario</h2>
+    <p id="fBenefInfo" class="ayuda"></p>
+    <button id="fElegir" class="btn secundario">Elegir de la lista</button>
+
+    <label>Nombre del beneficiario *<input id="fNombre" autocomplete="off" autocapitalize="words"></label>
+    <div id="errNombre" class="campo-error" hidden>Escribe el nombre del beneficiario</div>
+    <label>Comunidad<input id="fComunidad" list="listaComunidades" autocomplete="off" autocapitalize="words"
+      placeholder="Elige una o escribe una nueva"></label>
+    <datalist id="listaComunidades"></datalist>
+    <div id="errComunidad" class="campo-error" hidden>Indica la comunidad: define en qué hoja se guarda</div>
+    <div class="dos">
+      <label>DPI<input id="fDpi" inputmode="numeric" maxlength="13" autocomplete="off"></label>
+      <label id="fCampoCuerdas">Cuerdas<input id="fCuerdas" inputmode="decimal" autocomplete="off"></label>
+    </div>
+    <div id="errDpi" class="campo-error" hidden>El DPI debe tener 13 dígitos</div>
+    <label>Técnico que registra<input id="fTecnico" autocapitalize="words"></label>
+    <label>Observaciones<textarea id="fObs" rows="3" autocapitalize="sentences"></textarea></label>
+
+    <h2>Ubicación</h2>
+    <div class="coord"><span>Latitud</span><input id="fLat" inputmode="decimal" placeholder="14.731716" autocomplete="off"></div>
+    <div class="coord"><span>Longitud</span><input id="fLon" inputmode="text" placeholder="-91.243944" autocomplete="off"></div>
+    <p id="fGpsInfo" class="ayuda"></p>
+    <button id="fGps" class="btn secundario">Tomar punto con GPS</button>
+
+    <div id="fSeccionParcela">
+      <h2>Parcela (polígono)</h2>
+      <p id="fParcelaInfo" class="ayuda"></p>
+      <div id="fListaPuntos" class="lista-puntos"></div>
+      <button id="fParcela" class="btn secundario">Dibujar parcela</button>
+    </div>
+
+    <h2 id="fFotosTitulo">Fotos</h2>
+    <div id="fFotos" class="fotos"></div>
+    <p id="fFotosEnviadas" class="ayuda" hidden></p>
+    <div class="dos" id="fBotonesFoto">
+      <button id="fCamara" class="btn secundario">Cámara</button>
+      <button id="fGaleria" class="btn secundario">Galería</button>
+    </div>
+    <input id="inCamara" type="file" accept="image/*" capture="environment" hidden>
+    <input id="inGaleria" type="file" accept="image/*" multiple hidden>
+
+    <button id="fListo" class="btn primario">Enviar</button>
+    <button id="fBorrador" class="btn contorno">Guardar como borrador</button>
+    <button id="fEliminar" class="btn peligro">Eliminar registro</button>
+  </div>
+</section>
+
+<!-- ===================== LISTA ===================== -->
+<section id="vistaLista" class="vista" hidden>
+  <header class="barra">
+    <button class="volver" id="listaVolver">‹ Mapa</button>
+    <h1>Registros</h1>
+  </header>
+  <div class="cuerpo">
+    <p id="listaResumen" class="estado"></p>
+    <button id="listaEnviar" class="btn primario" style="margin-top:12px">Enviar pendientes ahora</button>
+    <ul id="listaReg" class="lista-reg"></ul>
+  </div>
+</section>
+
+<!-- ===================== EDITAR EL ÁREA ===================== -->
+<section id="vistaParcela" hidden>
+  <div class="barra-par">
+    <button class="btn-borde" id="parCancelar">Cancelar</button>
+    <h1>Editar el área</h1>
+    <button class="btn-verde" id="parGuardar">Guardar</button>
+  </div>
+  <div id="mapaParcela"></div>
+  <div id="parAyuda">Toca el mapa en cada esquina de la parcela. Arrastra una esquina para moverla, o arrastra un punto pequeño de la orilla para agregar una esquina en medio.</div>
+  <div id="parIzq">
+    <button class="redondo chico" id="parCentrar" aria-label="Ir a mi ubicación"><svg viewBox="0 0 24 24"><path d="M12 2L4.5 20.29l.71.71L12 18l6.79 3 .71-.71z"/></svg></button>
+    <button class="redondo chico" id="parCapas" aria-label="Capas del mapa"><svg viewBox="0 0 24 24"><path d="M11.99 18.54l-7.37-5.73L3 14.07l9 7 9-7-1.63-1.27-7.38 5.74zM12 16l7.36-5.73L21 9l-9-7-9 7 1.63 1.27L12 16z"/></svg></button>
+  </div>
+  <div id="parDer">
+    <button class="redondo chico" id="parGpsBtn" aria-label="Agregar esquina con GPS"><svg viewBox="0 0 24 24"><path d="M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8zm8.94 3A8.99 8.99 0 0 0 13 3.06V1h-2v2.06A8.99 8.99 0 0 0 3.06 11H1v2h2.06A8.99 8.99 0 0 0 11 20.94V23h2v-2.06A8.99 8.99 0 0 0 20.94 13H23v-2h-2.06zM12 19a7 7 0 1 1 0-14 7 7 0 0 1 0 14z"/></svg></button>
+    <button class="redondo chico" id="parDeshacer" aria-label="Deshacer (mantén presionado para borrar todo)"><svg viewBox="0 0 24 24"><path d="M12.5 8c-2.65 0-5.05.99-6.9 2.6L2 7v9h9l-3.62-3.62c1.39-1.16 3.16-1.88 5.12-1.88 3.54 0 6.55 2.31 7.6 5.5l2.37-.78C21.08 11.03 17.15 8 12.5 8z"/></svg></button>
+    <button class="redondo chico" id="parRehacer" aria-label="Rehacer"><svg viewBox="0 0 24 24"><path d="M18.4 10.6C16.55 8.99 14.15 8 11.5 8c-4.65 0-8.58 3.03-9.96 7.22L3.9 16c1.05-3.19 4.05-5.5 7.6-5.5 1.95 0 3.73.72 5.12 1.88L13 16h9V7l-3.6 3.6z"/></svg></button>
+  </div>
+  <div id="parEstado"><span id="parGps">GPS buscando…</span><span id="parTexto"></span></div>
+</section>
+
+<!-- ===================== VENTANAS ===================== -->
+<div id="modalCuerda" class="modal" hidden>
+  <div class="modal-caja">
+    <h3>Tamaño de la cuerda</h3>
+    <div id="listaCuerdas"></div>
+    <button class="btn texto" data-cerrar>Cancelar</button>
+  </div>
+</div>
+
+<div id="modalSelector" class="modal" hidden>
+  <div class="modal-caja">
+    <h3 id="selTitulo">Elegir beneficiario</h3>
+    <select id="selComunidad" aria-label="Comunidad"></select>
+    <input id="selBuscar" placeholder="Buscar por nombre, comunidad o DPI" autocomplete="off">
+    <ul id="selLista" class="lista-sel"></ul>
+    <button id="selNuevo" class="btn contorno">Nuevo (no está en la lista)</button>
+    <button id="selCancelar" class="btn texto">Cancelar</button>
+  </div>
+</div>
+
+<div id="modalCapas" class="modal" hidden>
+  <div class="modal-caja hoja-mapas">
+    <div class="agarradera"></div>
+    <h2 class="titulo-mapas">Mapas</h2>
+    <div class="botones-mapas" id="botonesMapas">
+      <button id="mpGuardar"><svg viewBox="0 0 24 24"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg>Guardar mapa<br>sin internet</button>
+      <button id="mpGuardados"><svg viewBox="0 0 24 24"><path d="M20 6h-8l-2-2H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm0 12H4V8h16v10z"/></svg>Mapas<br>guardados</button>
+    </div>
+    <h3 class="sub-mapas">Mapa de base</h3>
+    <div id="listaCapas"></div>
+  </div>
+</div>
+
+<div id="modalGuardados" class="modal" hidden>
+  <div class="modal-caja">
+    <h3>Mapas sin internet</h3>
+    <p id="gdEspacio" class="ayuda"></p>
+    <button class="opcion" id="gdGuardar">Guardar el mapa de esta zona</button>
+    <button class="opcion" id="gdBorrar">Borrar mapas guardados</button>
+    <button class="btn texto" data-cerrar>Cerrar</button>
+  </div>
+</div>
+
+<div id="modalAjustes" class="modal" hidden>
+  <div class="modal-caja ajustes">
+    <div class="agarradera"></div>
+    <h2 class="titulo-mapas">Ajustes</h2>
+
+    <h4>Técnico y datos</h4>
+    <label>Nombre del técnico<input id="ajTecnico" autocapitalize="words" autocomplete="off" placeholder="Se llenará solo en cada registro"></label>
+    <button class="opcion" id="ajLista"><span><b>Actualizar lista de beneficiarios</b><small id="ajListaInfo"></small></span></button>
+
+    <h4>Medidas</h4>
+    <button class="opcion" id="ajCuerda"><span><b>Tamaño de la cuerda</b><small id="ajCuerdaInfo"></small></span></button>
+    <label>Unidad de área preferida
+      <select id="ajUnidad">
+        <option value="cuerdas">Cuerdas</option>
+        <option value="ha">Hectáreas</option>
+        <option value="m2">Metros cuadrados (m²)</option>
+      </select>
+    </label>
+
+    <h4>GPS</h4>
+    <label>Precisión mínima aceptada
+      <select id="ajPrecision">
+        <option value="10">10 m (muy exigente)</option>
+        <option value="15">15 m (recomendado)</option>
+        <option value="25">25 m</option>
+        <option value="50">50 m (poco exigente)</option>
+      </select>
+    </label>
+    <p class="ayuda">La app avisará si guardas un punto o una esquina con menos precisión.</p>
+
+
+    <h4>Almacenamiento</h4>
+    <p id="ajEspacio" class="ayuda"></p>
+    <button class="opcion" id="ajLimpiar"><span><b>Quitar del teléfono los registros enviados</b><small>Siguen guardados en el Google Sheet</small></span></button>
+    <button class="opcion" id="ajBorrarTodo"><span><b style="color:var(--rojo)">Borrar todos los registros del teléfono</b><small>Borradores, pendientes y enviados</small></span></button>
+    <button class="opcion" id="ajCsv"><span><b>Descargar respaldo (CSV)</b><small>Se abre en Excel o Google Sheets</small></span></button>
+    <button class="opcion" id="ajGeojson"><span><b>Descargar respaldo (GeoJSON)</b><small>Para QGIS o ArcGIS (puntos y parcelas)</small></span></button>
+
+    <h4>Acerca de</h4>
+    <p class="ayuda" id="ajAcerca"></p>
+
+    <button class="btn texto" data-cerrar>Cerrar</button>
+  </div>
+</div>
+
+<!-- ===================== BARRA INFERIOR ===================== -->
+<nav id="nav">
+  <button id="navMapa" class="activo">
+    <svg viewBox="0 0 24 24"><path d="M20.5 3l-.16.03L15 5.1 9 3 3.36 4.9c-.21.07-.36.25-.36.48V20.5c0 .28.22.5.5.5l.16-.03L9 18.9l6 2.1 5.64-1.9c.21-.07.36-.25.36-.48V3.5c0-.28-.22-.5-.5-.5zM15 19l-6-2.11V5l6 2.11V19z"/></svg>Mapa</button>
+  <button id="navRegistros">
+    <svg viewBox="0 0 24 24"><path d="M19 3h-4.18C14.4 1.84 13.3 1 12 1c-1.3 0-2.4.84-2.82 2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-7 0c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1zm-2 14l-4-4 1.41-1.41L10 14.17l6.59-6.59L18 9l-8 8z"/></svg>Registros</button>
+  <button id="btnFab" aria-label="Registrar">
+    <span class="circulo"><svg viewBox="0 0 24 24" id="icoFab"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg></span>Registrar</button>
+  <button id="navEnviar">
+    <span class="ico-nav"><svg viewBox="0 0 24 24"><path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.64 5.64 5.4 8.04 2.39 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM14 13v4h-4v-4H7l5-5 5 5h-3z"/></svg><span id="insigniaEnviar" class="insignia" hidden>0</span></span>Enviar</button>
+  <button id="navAjustes">
+    <svg viewBox="0 0 24 24"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58a.49.49 0 0 0 .12-.61l-1.92-3.32a.49.49 0 0 0-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54a.48.48 0 0 0-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96a.48.48 0 0 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58a.49.49 0 0 0-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32a.48.48 0 0 0-.12-.61l-2.01-1.58zM12 15.6A3.61 3.61 0 0 1 8.4 12c0-1.98 1.62-3.6 3.6-3.6s3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg>Ajustes</button>
+</nav>
+
+<div id="toast" hidden></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js" crossorigin></script>
+<script>
+/* ============================================================
+   Monitoreo Wellkind – versión web (PWA)
+   Funciona igual que la app Android y usa el mismo Apps Script.
+   ============================================================ */
+const CONFIG = {
+  URL_SCRIPT: 'https://script.google.com/macros/s/AKfycbyeYPGDvmqQGfzqB_maGB0rDRP5jW1sOTrThYayD0Pg1oIqPOSp99BsqO9pM2u4H4slWg/exec',
+  TOKEN: 'wellkind2026',
+  MAX_FOTOS: 5,
+  // Contacto de soporte (opcional): escribe aquí tu WhatsApp (solo números, con 502) o correo
+  SOPORTE_WHATSAPP: '',
+  SOPORTE_CORREO: '',
+  MAX_LADO_FOTO: 2560,   // fotos en alta calidad (lado más largo, en píxeles)
+  CALIDAD_JPEG: 0.92,    // calidad JPEG alta
+  CENTRO: [14.70, -91.19],   // Lago Atitlán
+  ZOOM: 12
+};
+
+// Estado de la pantalla "Editar el área"
+const P = { mapa: null, base: null, capa: null, figura: null, yo: null, puntos: [],
+  deshacer: [], rehacer: [], cambios: false, origen: null };
+
+const VERSION_APP = '2026.10';
+// Preferencias guardadas en el teléfono (Ajustes)
+const PREF = {
+  umbral: () => Number(localStorage.getItem('umbral_gps')) || 15,
+  unidad: () => localStorage.getItem('unidad_area') || 'cuerdas'
+};
+
+const ESTADOS = {
+  BORRADOR:  { texto: 'Borrador',           color: '#9E9E9E' },
+  PENDIENTE: { texto: 'Pendiente de envío', color: '#F39C12' },
+  ENVIADO:   { texto: 'Enviado',            color: '#3DB83A' }
+};
+
+const $ = (s) => document.querySelector(s);
+
+// ---------- Utilidades ----------
+let toastTimer = null;
+function aviso(texto, ms = 3200) {
+  const t = $('#toast');
+  t.textContent = texto;
+  t.hidden = false;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { t.hidden = true; }, ms);
+}
+function normalizar(t) {
+  return String(t || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+}
+function dos(n) { return String(n).padStart(2, '0'); }
+function nuevoId() {
+  const d = new Date();
+  return 'R' + String(d.getFullYear()).slice(2) + dos(d.getMonth() + 1) + dos(d.getDate()) +
+    dos(d.getHours()) + dos(d.getMinutes()) + dos(d.getSeconds()) + '-' + Math.random().toString(16).slice(2, 6);
+}
+function ahora() {
+  const d = new Date();
+  return `${d.getFullYear()}-${dos(d.getMonth() + 1)}-${dos(d.getDate())} ${dos(d.getHours())}:${dos(d.getMinutes())}`;
+}
+function escapar(t) {
+  return String(t ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+function numero(t) {
+  const n = parseFloat(String(t || '').trim().replace(',', '.'));
+  return isNaN(n) ? null : n;
+}
+function rumbo(lat1, lon1, lat2, lon2) {
+  const r = Math.PI / 180;
+  const y = Math.sin((lon2 - lon1) * r) * Math.cos(lat2 * r);
+  const x = Math.cos(lat1 * r) * Math.sin(lat2 * r) - Math.sin(lat1 * r) * Math.cos(lat2 * r) * Math.cos((lon2 - lon1) * r);
+  return (Math.atan2(y, x) / r + 360) % 360;
+}
+function cardinal(g) {
+  return ['N', 'NE', 'E', 'SE', 'S', 'SO', 'O', 'NO'][Math.floor(((g % 360) + 360 + 22.5) % 360 / 45)];
+}
+function distanciaTexto(m) {
+  return m < 1000 ? `${Math.round(m)} m` : `${(m / 1000).toFixed(2)} km`;
+}
+
+// ---------- Base de datos en el teléfono (IndexedDB) ----------
+let _db = null;
+function abrirDb() {
+  if (_db) return Promise.resolve(_db);
+  return new Promise((ok, mal) => {
+    const req = indexedDB.open('monitoreo', 1);
+    req.onupgradeneeded = () => {
+      const d = req.result;
+      d.createObjectStore('registros', { keyPath: 'id' });
+      d.createObjectStore('kv');
+    };
+    req.onsuccess = () => { _db = req.result; ok(_db); };
+    req.onerror = () => mal(req.error);
+  });
+}
+function operacion(almacen, modo, fn) {
+  return abrirDb().then((d) => new Promise((ok, mal) => {
+    const t = d.transaction(almacen, modo);
+    const peticion = fn(t.objectStore(almacen));
+    let resultado;
+    if (peticion) peticion.onsuccess = () => { resultado = peticion.result; };
+    t.oncomplete = () => ok(resultado);
+    t.onerror = () => mal(t.error);
+    t.onabort = () => mal(t.error);
+  }));
+}
+const Reg = {
+  todos: () => operacion('registros', 'readonly', (s) => s.getAll())
+    .then((l) => (l || []).sort((a, b) => (b.fechaCaptura || '').localeCompare(a.fechaCaptura || ''))),
+  obtener: (id) => operacion('registros', 'readonly', (s) => s.get(id)),
+  guardar: (r) => operacion('registros', 'readwrite', (s) => s.put(r)),
+  borrar: (id) => operacion('registros', 'readwrite', (s) => s.delete(id))
+};
+const KV = {
+  get: (k) => operacion('kv', 'readonly', (s) => s.get(k)),
+  set: (k, v) => operacion('kv', 'readwrite', (s) => s.put(v, k))
+};
+
+// ---------- Beneficiarios (lista del Sheet) ----------
+async function beneficiarios() {
+  const datos = await KV.get('beneficiarios');
+  return datos && datos.beneficiarios ? datos : { comunidades: [], beneficiarios: [] };
+}
+async function comunidades() {
+  const d = await beneficiarios();
+  const todas = [...(d.comunidades || []), ...d.beneficiarios.map((b) => b.comunidad)].filter(Boolean);
+  const vistas = new Map();
+  todas.forEach((c) => { const k = normalizar(c); if (!vistas.has(k)) vistas.set(k, c); });
+  return [...vistas.values()].sort((a, b) => normalizar(a).localeCompare(normalizar(b)));
+}
+async function actualizarLista(manual) {
+  if (!navigator.onLine) { if (manual) aviso('Sin internet: conéctate para actualizar la lista'); return; }
+  try {
+    if (manual) aviso('Descargando lista de beneficiarios…');
+    const url = CONFIG.URL_SCRIPT + '?accion=lista&token=' + encodeURIComponent(CONFIG.TOKEN);
+    const res = await (await fetch(url)).json();
+    if (!res.ok) throw new Error(res.error || 'error del servidor');
+    await KV.set('beneficiarios', res);
+    localStorage.setItem('lista_fecha', String(Date.now()));
+    localStorage.setItem('lista_total', String(res.beneficiarios.length));
+    pintarInfoLista();
+    if (manual) aviso(`Lista actualizada: ${res.beneficiarios.length} beneficiarios`);
+  } catch (e) {
+    if (manual) aviso('No se pudo actualizar la lista: ' + e.message);
+  }
+}
+
+// ============================================================
+//  MAPA
+// ============================================================
+// Año del mosaico Sentinel-2 sin nubes. Si EOX publica uno más nuevo, solo se cambia este número.
+const ANIO_SENTINEL = 2023;
+const PLANTILLAS = {
+  satelite: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+  clarity: 'https://clarity.maptiles.arcgis.com/arcgis/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+  sentinel: `https://tiles.maps.eox.at/wmts/1.0.0/s2cloudless-${ANIO_SENTINEL}_3857/default/g/{z}/{y}/{x}.jpg`,
+  calles: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+  topo: 'https://a.tile.opentopomap.org/{z}/{x}/{y}.png'
+};
+// max = último zoom con imagen real; más cerca se amplía esa imagen
+const CAPAS = {
+  satelite: { nombre: 'Satélite (Esri)', max: 18, cors: true, atrib: 'Imágenes © Esri, Maxar, Earthstar Geographics' },
+  clarity: { nombre: 'Satélite nítido (Esri Clarity)', max: 18, cors: true, atrib: 'Imágenes © Esri (Clarity)' },
+  sentinel: { nombre: `Satélite reciente ${ANIO_SENTINEL} (Sentinel-2, 10 m)`, max: 15, cors: false,
+    atrib: `Sentinel-2 cloudless – s2maps.eu por EOX IT Services GmbH (Copernicus Sentinel data ${ANIO_SENTINEL})` },
+  calles: { nombre: 'Calles (OpenStreetMap)', max: 19, cors: true, atrib: '© OpenStreetMap' },
+  topo: { nombre: 'Topográfico', max: 17, cors: true, atrib: '© OpenTopoMap (CC-BY-SA)' }
+};
+let capaActual = localStorage.getItem('capa') || 'satelite';
+if (!CAPAS[capaActual]) capaActual = 'satelite';
+
+const mapa = L.map('mapa', { zoomControl: false, maxZoom: 22 }).setView(CONFIG.CENTRO, CONFIG.ZOOM);
+mapa.attributionControl.setPrefix(false);
+let capaBase = null;
+function crearCapa(clave) {
+  const c = CAPAS[clave];
+  return L.tileLayer(PLANTILLAS[clave], { maxNativeZoom: c.max, maxZoom: 22, crossOrigin: c.cors ? true : undefined, attribution: c.atrib });
+}
+function ponerCapa(clave) {
+  if (capaBase) mapa.removeLayer(capaBase);
+  capaBase = crearCapa(clave).addTo(mapa);
+  if (P.mapa) {
+    if (P.base) P.mapa.removeLayer(P.base);
+    P.base = crearCapa(clave).addTo(P.mapa);
+  }
+  capaActual = clave;
+  localStorage.setItem('capa', clave);
+}
+ponerCapa(capaActual);
+L.control.scale({ imperial: false, position: 'topleft', maxWidth: 120 }).addTo(mapa);
+
+const capaRegistros = L.layerGroup().addTo(mapa);
+let marcaYo = null, circuloYo = null, ultimaPos = null;
+let marcaPunto = null, puntoMarcado = null;
+
+const iconoPin = L.divIcon({
+  className: 'pin', iconSize: [40, 40], iconAnchor: [20, 40],
+  html: '<svg viewBox="0 0 24 24" width="40" height="40"><path fill="#F44336" stroke="#fff" stroke-width=".8" d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5a2.5 2.5 0 1 1 0-5 2.5 2.5 0 0 1 0 5z"/></svg>'
+});
+
+// ---------- Íconos: flecha azul (mi ubicación) y pin con hojita (registros) ----------
+function iconoFlecha(rumboGrados) {
+  return L.divIcon({
+    className: 'flecha-yo', iconSize: [38, 38], iconAnchor: [19, 19],
+    html: `<svg viewBox="0 0 38 38" width="38" height="38" style="transform: rotate(${rumboGrados || 0}deg)">` +
+      '<path d="M19 3 L32.7 34.2 L19 26.6 L5.3 34.2 Z" fill="#2F80ED" stroke="#fff" stroke-width="2.5" stroke-linejoin="round"/></svg>'
+  });
+}
+function rumboDe(c) {
+  return (c.heading != null && !isNaN(c.heading) && (c.speed == null || c.speed > 0.3)) ? c.heading : null;
+}
+let ultimoRumbo = 0;
+function iconoPinRegistro(color) {
+  // Pin dorado Wellkind con hojita; el punto de color indica el estado
+  return L.divIcon({
+    className: 'pin-reg', iconSize: [40, 40], iconAnchor: [20, 38],
+    html: '<svg viewBox="0 0 24 24" width="40" height="40">' +
+      '<path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z" fill="#E0AD4B" stroke="#fff" stroke-width="1.1"/>' +
+      '<path d="M15.4 5.4C11.2 5.4 8.6 7.7 8.6 11c0 .6.1 1.1.3 1.5C10 10.3 11.8 8.8 13.9 8 12.1 9.2 10.6 11 9.7 13.2c.5.3 1.1.5 1.8.5 3.1 0 4.8-2.9 3.9-8.3z" fill="#fff"/>' +
+      `<circle cx="17.6" cy="4.4" r="3.1" fill="${color}" stroke="#fff" stroke-width="1.1"/></svg>`
+  });
+}
+
+// ---------- GPS ----------
+const gpsForm = { activo: false, mejor: null };
+
+function iniciarUbicacion() {
+  if (!('geolocation' in navigator)) { aviso('Este teléfono no permite usar el GPS en el navegador'); return; }
+  navigator.geolocation.watchPosition((p) => {
+    const c = p.coords;
+    ultimaPos = { lat: c.latitude, lon: c.longitude, precision: c.accuracy, altitud: c.altitude };
+    const ll = [c.latitude, c.longitude];
+    if (!marcaYo) {
+      circuloYo = L.circle(ll, { radius: c.accuracy, color: '#4A90E2', weight: 1, fillOpacity: .12, interactive: false }).addTo(mapa);
+      marcaYo = L.marker(ll, { icon: iconoFlecha(ultimoRumbo), interactive: false, keyboard: false, zIndexOffset: 1000 }).addTo(mapa);
+    } else {
+      marcaYo.setLatLng(ll);
+      const r = rumboDe(c);
+      if (r != null && Math.abs(r - ultimoRumbo) > 3) { ultimoRumbo = r; marcaYo.setIcon(iconoFlecha(r)); }
+      circuloYo.setLatLng(ll).setRadius(c.accuracy);
+    }
+    $('#tvPrecision').textContent = '±' + Math.round(c.accuracy) + ' m';
+    const chip = $('#chipGps');
+    chip.classList.remove('buena', 'regular', 'mala');
+    chip.classList.add(c.accuracy <= PREF.umbral() ? 'buena' : c.accuracy <= PREF.umbral() * 2 ? 'regular' : 'mala');
+    $('#tvElevacion').textContent = c.altitude != null ? Math.round(c.altitude) + ' m' : '—';
+    $('#chipElev').hidden = c.altitude == null;
+    if (gpsForm.activo) lecturaGpsForm(ultimaPos);
+    if (P.mapa) {
+      if (!P.yo) P.yo = L.marker(ll, { icon: iconoFlecha(ultimoRumbo), interactive: false, keyboard: false, zIndexOffset: 1000 }).addTo(P.mapa);
+      else { P.yo.setLatLng(ll); P.yo.setIcon(iconoFlecha(ultimoRumbo)); }
+      if (!$('#vistaParcela').hidden) estadoParcela();
+    }
+  }, (e) => {
+    if (e.code === 1) aviso('Permite el acceso a la ubicación para usar el GPS', 5000);
+  }, { enableHighAccuracy: true, maximumAge: 0, timeout: 60000 });
+}
+
+function centrarEnMi() {
+  if (!ultimaPos) { aviso('Buscando señal GPS… sal a campo abierto'); return; }
+  mapa.setView([ultimaPos.lat, ultimaPos.lon], Math.max(mapa.getZoom(), 17));
+}
+
+// ---------- Tocar el mapa ----------
+mapa.on('click', (e) => {
+  if (!$('#menuFab').hidden) { cerrarMenu(); return; }
+  if (ultimaPos) {
+    const a = mapa.latLngToContainerPoint([ultimaPos.lat, ultimaPos.lon]);
+    const b = mapa.latLngToContainerPoint(e.latlng);
+    if (a.distanceTo(b) < 48) { marcarMiUbicacion(); return; }
+  }
+  marcarPunto(e.latlng.lat, e.latlng.lng);
+});
+
+function marcarMiUbicacion() {
+  if (!ultimaPos) { aviso('Buscando señal GPS… sal a campo abierto'); return; }
+  marcarPunto(ultimaPos.lat, ultimaPos.lon, ultimaPos.precision, ultimaPos.altitud);
+}
+
+function marcarPunto(lat, lon, precision = null, altitud = null) {
+  puntoMarcado = { lat, lon, precision, altitud };
+  if (marcaPunto) mapa.removeLayer(marcaPunto);
+  marcaPunto = L.marker([lat, lon], { icon: iconoPin, interactive: false }).addTo(mapa);
+
+  let info;
+  if (precision != null) {
+    info = (altitud != null ? `Elevación: ${Math.round(altitud)} m · ` : '') + `Mi ubicación (GPS ±${Math.round(precision)} m)`;
+  } else if (ultimaPos) {
+    const d = mapa.distance([ultimaPos.lat, ultimaPos.lon], [lat, lon]);
+    const g = rumbo(ultimaPos.lat, ultimaPos.lon, lat, lon);
+    info = `${distanciaTexto(d)}, ${Math.round(g)}° ${cardinal(g)} de mi posición`;
+  } else {
+    info = 'Mi posición todavía no está disponible';
+  }
+  $('#puntoInfo').textContent = info;
+  $('#puntoCoords').textContent = `${lat.toFixed(6)}, ${lon.toFixed(6)}`;
+
+  cerrarMenu();
+  $('#hoja').hidden = false;
+  $('#colIzq').hidden = true;
+  $('#colDer').hidden = true;
+}
+
+function cerrarPunto() {
+  if (marcaPunto) mapa.removeLayer(marcaPunto);
+  marcaPunto = null;
+  puntoMarcado = null;
+  $('#hoja').hidden = true;
+  $('#colIzq').hidden = false;
+  $('#colDer').hidden = false;
+}
+
+async function compartirPunto() {
+  if (!puntoMarcado) return;
+  const { lat, lon } = puntoMarcado;
+  const texto = `${lat.toFixed(6)}, ${lon.toFixed(6)}\nhttps://www.google.com/maps?q=${lat.toFixed(6)},${lon.toFixed(6)}`;
+  if (navigator.share) {
+    try { await navigator.share({ title: 'Ubicación', text: texto }); } catch (e) { /* cancelado */ }
+  } else {
+    try { await navigator.clipboard.writeText(texto); aviso('Coordenadas copiadas'); } catch (e) { aviso(texto, 6000); }
+  }
+}
+
+// ---------- Menú del botón + ----------
+function abrirMenu() {
+  $('#menuFab').hidden = false;
+  $('#btnFab').classList.add('abierto');
+}
+function cerrarMenu() {
+  $('#menuFab').hidden = true;
+  $('#btnFab').classList.remove('abierto');
+}
+
+// ---------- Puntos de registros en el mapa ----------
+async function dibujarRegistros() {
+  const todos = await Reg.todos();
+  capaRegistros.clearLayers();
+  for (const r of todos) {
+    if (r.estado === 'BORRADOR') continue;   // los borradores no se muestran en el mapa
+    if (r.poligono && r.poligono.length >= 3) {
+      L.polygon(r.poligono, { color: '#E0AD4B', weight: 2.5, fillOpacity: .2, bubblingMouseEvents: false })
+        .on('click', () => abrirForm(r.id)).addTo(capaRegistros);
+    }
+    if (r.lat == null || r.lon == null) continue;
+    L.marker([r.lat, r.lon], { icon: iconoPinRegistro(ESTADOS[r.estado].color), bubblingMouseEvents: false, keyboard: false })
+      .on('click', () => abrirForm(r.id)).addTo(capaRegistros);
+  }
+  const pendientes = todos.filter((r) => r.estado === 'PENDIENTE').length;
+  $('#tvPendientes').textContent = pendientes;
+  $('#chipPend').hidden = pendientes === 0;
+  // Número naranja sobre "Enviar"
+  $('#insigniaEnviar').hidden = pendientes === 0;
+  $('#insigniaEnviar').textContent = pendientes > 99 ? '99+' : pendientes;
+}
+
+// ============================================================
+//  NAVEGACIÓN ENTRE PANTALLAS (con botón atrás del teléfono)
+// ============================================================
+const pila = [];
+let ignorarPop = false;
+function abrirCapa(id) {
+  $(id).hidden = false;
+  pila.push(id);
+  history.pushState({ capa: id }, '');
+}
+function cerrarCapaSuperior() {
+  const id = pila.pop();
+  if (!id) return false;
+  if (id === '#vistaForm') salirDelForm();
+  $(id).hidden = true;
+  if (id === '#vistaForm' || id === '#vistaLista') {
+    if (pila.includes('#vistaLista')) { marcarNav('#navRegistros'); pintarLista(); }
+    else marcarNav('#navMapa');
+    dibujarRegistros();
+  }
+  return true;
+}
+function volver() {
+  if (pila.length) history.back();
+}
+window.addEventListener('popstate', () => {
+  if (ignorarPop) { ignorarPop = false; return; }
+  if (!cerrarCapaSuperior()) {
+    if (!$('#hoja').hidden) cerrarPunto();
+  }
+});
+function marcarNav(id) {
+  document.querySelectorAll('#nav button').forEach((b) => b.classList.remove('activo'));
+  $(id).classList.add('activo');
+}
+/** Cierra todas las pantallas abiertas y luego ejecuta "despues". */
+function cerrarTodo(despues) {
+  const n = pila.length;
+  while (pila.length) cerrarCapaSuperior();
+  if (n) {
+    ignorarPop = true;
+    history.go(-n);
+    setTimeout(() => { if (despues) despues(); }, 150);
+  } else if (despues) despues();
+}
+
+// ============================================================
+//  FORMULARIO
+// ============================================================
+let F = null;           // registro en edición
+let fEliminado = false;
+let autoguardado = null;
+
+function registroNuevo() {
+  return {
+    id: nuevoId(), beneficiarioId: '', nombre: '', comunidad: '', dpi: '', cuerdas: '',
+    tecnico: localStorage.getItem('tecnico') || '', descripcion: '',
+    lat: null, lon: null, precision: null, altitud: null,
+    fotos: [], fotosEnviadas: 0, estado: 'BORRADOR', fechaCaptura: ahora(), error: '',
+    poligono: [], area: null,
+    tipo: 'punto'   // 'punto' = registro de un punto · 'parcela' = registro con polígono
+  };
+}
+
+async function abrirForm(id, punto = null, autoGps = false, parcela = null) {
+  cerrarPunto();
+  cerrarMenu();
+  fEliminado = false;
+  gpsForm.activo = false;
+  F = id ? await Reg.obtener(id) : null;
+  const esNuevo = !F;
+  if (esNuevo) {
+    F = registroNuevo();
+    if (punto) {
+      F.lat = punto.lat; F.lon = punto.lon;
+      F.precision = punto.precision ?? null; F.altitud = punto.altitud ?? null;
+    }
+    if (parcela && parcela.puntos.length >= 3) {
+      F.tipo = 'parcela';
+      F.poligono = parcela.puntos;
+      F.area = parcela.area;
+      F.cuerdas = (parcela.area / m2PorCuerda()).toFixed(2);
+      if (F.lat == null) { const c = centroP(parcela.puntos); F.lat = c[0]; F.lon = c[1]; }
+    }
+  }
+  if (!F.poligono) F.poligono = [];
+  $('#formTitulo').textContent = esNuevo ? 'Nuevo registro' : 'Registro';
+  ['#errNombre', '#errComunidad', '#errDpi'].forEach((e) => { $(e).hidden = true; });
+  $('#fNombre').value = F.nombre;
+  $('#fComunidad').value = F.comunidad;
+  $('#fDpi').value = F.dpi || '';
+  $('#fCuerdas').value = F.cuerdas || '';
+  $('#fTecnico').value = F.tecnico;
+  $('#fObs').value = F.descripcion;
+
+  const lista = await comunidades();
+  $('#listaComunidades').innerHTML = lista.map((c) => `<option value="${escapar(c)}">`).join('');
+
+  pintarEstado();
+  await pintarBeneficiario();
+  pintarGps();
+  pintarParcela();
+  pintarFotos();
+  bloquearSiEnviado();
+  ajustarPorTipo();
+
+  abrirCapa('#vistaForm');
+  $('#vistaForm').scrollTop = 0;
+
+  if (esNuevo) {
+    if (autoGps) iniciarGpsForm();
+    abrirSelector();
+  }
+}
+
+function leerCampos() {
+  F.nombre = $('#fNombre').value.trim();
+  F.comunidad = $('#fComunidad').value.trim();
+  F.dpi = $('#fDpi').value.replace(/\D/g, '');
+  F.cuerdas = $('#fCuerdas').value.trim();
+  F.tecnico = $('#fTecnico').value.trim();
+  F.descripcion = $('#fObs').value.trim();
+  const la = numero($('#fLat').value), lo = numero($('#fLon').value);
+  if (la != null && lo != null && la >= -90 && la <= 90 && lo >= -180 && lo <= 180) {
+    if (F.lat == null || F.lon == null || Math.abs(F.lat - la) > 2e-6 || Math.abs(F.lon - lo) > 2e-6) {
+      F.precision = null; F.altitud = null;
+    }
+    F.lat = la; F.lon = lo;
+  } else if (!$('#fLat').value.trim() && !$('#fLon').value.trim()) {
+    F.lat = null; F.lon = null; F.precision = null; F.altitud = null;
+  }
+}
+
+function hayContenido() {
+  return !!(F.nombre || F.comunidad || F.descripcion || F.dpi || F.cuerdas || F.lat != null || F.fotos.length || (F.poligono || []).length);
+}
+
+async function guardarSiHayDatos() {
+  if (!F || fEliminado || F.estado === 'ENVIADO') return;
+  leerCampos();
+  if (hayContenido()) await Reg.guardar(F);
+}
+
+function salirDelForm() {
+  gpsForm.activo = false;
+  clearTimeout(autoguardado);
+  guardarSiHayDatos().then(dibujarRegistros);
+}
+
+function pintarEstado() {
+  const e = ESTADOS[F.estado];
+  let t = 'Estado: ' + e.texto;
+  if (F.estado === 'PENDIENTE' && F.error) t += ' · Último error: ' + F.error;
+  $('#fEstado').textContent = t;
+  $('#fEstado').style.color = e.color;
+}
+
+async function pintarBeneficiario() {
+  const deLista = !!F.beneficiarioId;
+  const editable = !deLista && F.estado !== 'ENVIADO';
+  $('#fNombre').disabled = !editable;
+  $('#fComunidad').disabled = !editable;
+  const com = $('#fComunidad').value.trim();
+  const existe = (await comunidades()).some((c) => normalizar(c) === normalizar(com));
+  let t;
+  if (deLista) t = `De la hoja «${com}» (código ${F.beneficiarioId})`;
+  else if (!com) t = 'Beneficiario nuevo: escribe o elige su comunidad';
+  else if (existe) t = `Beneficiario nuevo: se agregará a la hoja «${com}»`;
+  else t = `Comunidad nueva: se creará la hoja «${com}» al enviar`;
+  $('#fBenefInfo').textContent = t;
+  $('#fElegir').textContent = deLista ? 'Cambiar beneficiario' : 'Elegir de la lista';
+}
+
+function pintarGps() {
+  if (gpsForm.activo) return;
+  if (F.lat != null && F.lon != null) {
+    $('#fLat').value = F.lat.toFixed(6);
+    $('#fLon').value = F.lon.toFixed(6);
+    $('#fGpsInfo').textContent = F.precision != null
+      ? `GPS ±${Math.round(F.precision)} m` + (F.altitud != null ? ` · elevación ${Math.round(F.altitud)} m` : '')
+      : 'Punto marcado en el mapa o escrito a mano';
+    $('#fGps').textContent = 'Volver a tomar con GPS';
+  } else {
+    $('#fLat').value = '';
+    $('#fLon').value = '';
+    $('#fGpsInfo').textContent = 'Sin punto: usa el GPS o escribe las coordenadas';
+    $('#fGps').textContent = 'Tomar punto con GPS';
+  }
+}
+
+function pintarFotos() {
+  const cont = $('#fFotos');
+  cont.innerHTML = '';
+  F.fotos.forEach((foto, i) => {
+    const div = document.createElement('div');
+    div.className = 'foto';
+    div.innerHTML = `<img src="${foto}" alt="Foto ${i + 1}">` +
+      (F.estado !== 'ENVIADO' ? `<button aria-label="Borrar foto" data-i="${i}">✕</button>` : '');
+    cont.appendChild(div);
+  });
+  cont.querySelectorAll('button').forEach((b) => b.addEventListener('click', () => {
+    if (!confirm('¿Borrar esta foto?')) return;
+    F.fotos.splice(Number(b.dataset.i), 1);
+    guardarSiHayDatos();
+    pintarFotos();
+  }));
+  $('#fFotosTitulo').textContent = `Fotos (${F.fotos.length}/${CONFIG.MAX_FOTOS})`;
+  const env = $('#fFotosEnviadas');
+  env.hidden = !(F.estado === 'ENVIADO' && F.fotosEnviadas);
+  env.textContent = `${F.fotosEnviadas} foto(s) enviada(s) a la carpeta de Drive.`;
+}
+
+/** Registro de un punto: sin "Dibujar parcela" ni "Volver a tomar con GPS". */
+function tipoRegistro(r) {
+  return r.tipo || ((r.poligono || []).length >= 3 ? 'parcela' : 'punto');
+}
+function ajustarPorTipo() {
+  const esPunto = tipoRegistro(F) === 'punto';
+  $('#fSeccionParcela').hidden = esPunto;
+  // En parcelas las cuerdas se calculan del polígono: no se escriben a mano
+  $('#fCampoCuerdas').hidden = !esPunto;
+  $('#fCampoCuerdas').parentElement.style.gridTemplateColumns = esPunto ? '' : '1fr';
+  // Ni en puntos ni en parcelas se vuelve a tomar el GPS desde el formulario
+  $('#fGps').hidden = true;
+  if (!esPunto) {
+    const n = (F.poligono || []).length;
+    $('#fGpsInfo').textContent = n >= 3 ? `Centro de la parcela · polígono de ${n} puntos` : 'Centro de la parcela';
+  }
+}
+
+function bloquearSiEnviado() {
+  const enviado = F.estado === 'ENVIADO';
+  ['#fDpi', '#fCuerdas', '#fTecnico', '#fObs', '#fLat', '#fLon'].forEach((s) => { $(s).disabled = enviado; });
+  ['#fElegir', '#fGps', '#fParcela', '#fBotonesFoto', '#fListo', '#fBorrador'].forEach((s) => { $(s).hidden = enviado; });
+  $('#fEliminar').textContent = enviado ? 'Quitar del teléfono' : 'Eliminar registro';
+}
+
+// --- GPS del formulario ---
+function iniciarGpsForm() {
+  gpsForm.activo = true;
+  gpsForm.mejor = null;
+  $('#fGps').textContent = 'Fijar este punto';
+  $('#fGpsInfo').textContent = 'Buscando satélites… en campo abierto tarda entre 30 y 60 segundos.';
+  if (ultimaPos) lecturaGpsForm(ultimaPos);
+}
+function lecturaGpsForm(p) {
+  if (!gpsForm.mejor || p.precision <= gpsForm.mejor.precision) gpsForm.mejor = { ...p };
+  const m = gpsForm.mejor;
+  $('#fGpsInfo').textContent = `Lectura actual: ±${Math.round(p.precision)} m · mejor: ±${Math.round(m.precision)} m ` +
+    `(${m.lat.toFixed(6)}, ${m.lon.toFixed(6)}). Fija el punto cuando sea menor a ${PREF.umbral()} m.`;
+}
+function fijarPunto() {
+  const m = gpsForm.mejor;
+  if (!m) { aviso('Todavía no hay lectura GPS, espera un momento'); return; }
+  F.lat = m.lat; F.lon = m.lon; F.precision = m.precision; F.altitud = m.altitud;
+  gpsForm.activo = false;
+  pintarGps();
+  guardarSiHayDatos();
+}
+
+// --- Fotos ---
+function comprimir(archivo) {
+  return new Promise((ok, mal) => {
+    const url = URL.createObjectURL(archivo);
+    const img = new Image();
+    img.onload = () => {
+      const esc = Math.min(1, CONFIG.MAX_LADO_FOTO / Math.max(img.naturalWidth, img.naturalHeight));
+      const c = document.createElement('canvas');
+      c.width = Math.round(img.naturalWidth * esc);
+      c.height = Math.round(img.naturalHeight * esc);
+      c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+      URL.revokeObjectURL(url);
+      ok(c.toDataURL('image/jpeg', CONFIG.CALIDAD_JPEG));
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); mal(new Error('No se pudo leer la foto')); };
+    img.src = url;
+  });
+}
+async function agregarFotos(lista) {
+  const archivos = [...lista];
+  if (!archivos.length) return;
+  const libres = CONFIG.MAX_FOTOS - F.fotos.length;
+  if (libres <= 0) { aviso(`Máximo ${CONFIG.MAX_FOTOS} fotos por registro`); return; }
+  if (archivos.length > libres) aviso(`Solo se agregaron ${libres} foto(s): el máximo es ${CONFIG.MAX_FOTOS}`);
+  let fallos = 0;
+  for (const a of archivos.slice(0, libres)) {
+    try { F.fotos.push(await comprimir(a)); } catch (e) { fallos++; }
+  }
+  if (fallos) aviso('Algunas fotos no se pudieron procesar');
+  await guardarSiHayDatos();
+  pintarFotos();
+}
+
+// --- Guardar / enviar / eliminar ---
+async function marcarListo() {
+  leerCampos();
+  let error = false;
+  $('#errNombre').hidden = !!F.nombre;
+  if (!F.nombre) error = true;
+  const sinComunidad = !F.beneficiarioId && !F.comunidad;
+  $('#errComunidad').hidden = !sinComunidad;
+  if (sinComunidad) error = true;
+  const dpiMal = F.dpi && F.dpi.length !== 13;
+  $('#errDpi').hidden = !dpiMal;
+  if (dpiMal) error = true;
+  if (error) { aviso('Revisa los campos marcados en rojo'); return; }
+  if (gpsForm.activo) { aviso('Primero toca «Fijar este punto»'); return; }
+  if (F.lat == null && !confirm('Este registro no tiene ubicación. ¿Marcarlo como listo de todas formas?')) return;
+  if (F.precision != null && F.precision > PREF.umbral() &&
+      !confirm(`El punto tiene ±${Math.round(F.precision)} m de error y tu mínimo es ${PREF.umbral()} m. ¿Guardarlo de todas formas?`)) return;
+
+  F.estado = 'PENDIENTE';
+  F.error = '';
+  await Reg.guardar(F);
+  localStorage.setItem('tecnico', F.tecnico);
+  aviso('Guardado. Se enviará automáticamente cuando haya señal.');
+  volver();
+  sincronizar(false);
+}
+
+async function guardarBorrador() {
+  leerCampos();
+  if (hayContenido()) {
+    F.estado = 'BORRADOR';
+    await Reg.guardar(F);
+    localStorage.setItem('tecnico', F.tecnico);
+    aviso('Borrador guardado');
+  }
+  volver();
+}
+
+async function eliminar() {
+  const enviado = F.estado === 'ENVIADO';
+  const msg = enviado
+    ? 'El registro ya está en Google Sheets y Drive; solo se borrará de este teléfono. ¿Continuar?'
+    : 'Se borrarán los datos y las fotos de este registro. No se puede deshacer. ¿Eliminar?';
+  if (!confirm(msg)) return;
+  await Reg.borrar(F.id);
+  fEliminado = true;
+  volver();
+}
+
+// ============================================================
+//  SELECTOR DE BENEFICIARIO
+// ============================================================
+let selFiltrados = [];
+async function abrirSelector() {
+  const datos = await beneficiarios();
+  const todos = datos.beneficiarios;
+  if (!todos.length) {
+    if (confirm('Todavía no se ha descargado la lista de beneficiarios. Con señal, usa Ajustes → Actualizar lista. ¿Registrar un beneficiario nuevo mientras tanto?')) usarNuevo(null);
+    return;
+  }
+  const coms = await comunidades();
+  const hechos = new Set((await Reg.todos()).map((r) => r.beneficiarioId).filter(Boolean));
+  $('#selTitulo').textContent = `Elegir beneficiario (${todos.length})`;
+  $('#selComunidad').innerHTML = '<option value="">Todas las comunidades</option>' +
+    coms.map((c) => `<option value="${escapar(c)}">${escapar(c)} (${todos.filter((b) => b.comunidad === c).length})</option>`).join('');
+  $('#selBuscar').value = '';
+
+  const pintar = () => {
+    const com = $('#selComunidad').value;
+    const t = normalizar($('#selBuscar').value);
+    selFiltrados = todos.filter((b) => (!com || b.comunidad === com) &&
+      (!t || normalizar(`${b.nombre} ${b.comunidad} ${b.dpi || b.extra || ''}`).includes(t)));
+    $('#selLista').innerHTML = selFiltrados.slice(0, 400).map((b, i) => {
+      const marca = (b.monitoreado || hechos.has(b.id)) ? '✓ ' : '';
+      const det = [b.comunidad, b.dpi || b.extra].filter(Boolean).join(' · ');
+      return `<li data-i="${i}">${marca}${escapar(b.nombre)}<small>${escapar(det)}</small></li>`;
+    }).join('') || '<li class="vacio">No hay coincidencias</li>';
+  };
+  $('#selComunidad').onchange = pintar;
+  $('#selBuscar').oninput = pintar;
+  $('#selLista').onclick = (e) => {
+    const li = e.target.closest('li[data-i]');
+    if (!li) return;
+    usarBeneficiario(selFiltrados[Number(li.dataset.i)]);
+    cerrarModal('#modalSelector');
+  };
+  $('#selNuevo').onclick = () => { const c = $('#selComunidad').value || null; cerrarModal('#modalSelector'); usarNuevo(c); };
+  pintar();
+  abrirModal('#modalSelector');
+}
+
+function usarBeneficiario(b) {
+  F.beneficiarioId = b.id;
+  $('#fNombre').value = b.nombre;
+  $('#fComunidad').value = b.comunidad;
+  if (!$('#fDpi').value && b.dpi) $('#fDpi').value = b.dpi;
+  if (!$('#fCuerdas').value && b.cuerdas) $('#fCuerdas').value = b.cuerdas;
+  leerCampos();
+  pintarBeneficiario();
+  guardarSiHayDatos();
+}
+
+function usarNuevo(comunidad) {
+  if (F.beneficiarioId) { $('#fNombre').value = ''; $('#fComunidad').value = ''; }
+  F.beneficiarioId = '';
+  if (comunidad) $('#fComunidad').value = comunidad;
+  leerCampos();
+  pintarBeneficiario();
+  $('#fNombre').focus();
+}
+
+// ============================================================
+//  LISTA DE REGISTROS
+// ============================================================
+async function abrirLista() {
+  cerrarPunto();
+  cerrarMenu();
+  await pintarLista();
+  if (!pila.includes('#vistaLista')) abrirCapa('#vistaLista');
+  marcarNav('#navRegistros');
+}
+async function pintarLista() {
+  const todos = await Reg.todos();
+  const n = (e) => todos.filter((r) => r.estado === e).length;
+  $('#listaResumen').textContent = `${n('BORRADOR')} borradores · ${n('PENDIENTE')} pendientes de envío · ${n('ENVIADO')} enviados`;
+  $('#listaReg').innerHTML = todos.map((r) => {
+    const det = [r.comunidad, r.fechaCaptura, `${(r.fotos || []).length || r.fotosEnviadas || 0} fotos`,
+      (r.poligono || []).length >= 3 ? `parcela de ${r.poligono.length} puntos` : '',
+      r.area ? `${(r.area / m2PorCuerda()).toFixed(2)} cuerdas · ${(r.area / 10000).toFixed(4)} ha` : '', r.lat == null ? 'sin GPS' : '']
+      .filter(Boolean).join(' · ');
+    const est = ESTADOS[r.estado];
+    const txt = r.estado === 'PENDIENTE' && r.error ? `${est.texto} – error: ${r.error}` : est.texto;
+    return `<li data-id="${escapar(r.id)}"><b>${escapar(r.nombre || '(sin nombre)')}</b><span>${escapar(det)}</span>` +
+      `<em style="color:${est.color}">${escapar(txt)}</em></li>`;
+  }).join('') || '<li class="vacio">Todavía no hay registros. Toca tu ubicación en el mapa para empezar.</li>';
+}
+
+// ============================================================
+//  ENVÍO AL GOOGLE SHEET
+// ============================================================
+let sincronizando = false;
+async function sincronizar(manual) {
+  if (sincronizando) return;
+  const pendientes = (await Reg.todos()).filter((r) => r.estado === 'PENDIENTE');
+  if (!pendientes.length) { if (manual) aviso('No hay registros pendientes de envío'); return; }
+  if (!navigator.onLine) { if (manual) aviso('Sin señal. Se enviarán cuando vuelva el internet.'); return; }
+  sincronizando = true;
+  if (manual) aviso('Enviando…');
+  let enviados = 0, conError = 0;
+  try {
+    for (const r of pendientes) {
+      const datos = {
+        token: CONFIG.TOKEN, id: r.id, beneficiarioId: r.beneficiarioId || '',
+        dpi: r.dpi || '', cuerdas: r.cuerdas || '', fechaCaptura: r.fechaCaptura, tecnico: r.tecnico,
+        nombre: r.nombre, comunidad: r.comunidad, descripcion: r.descripcion,
+        fotos: (r.fotos || []).map((f) => f.split(',')[1]),
+        m2Cuerda: m2PorCuerda()
+      };
+      if (r.poligono && r.poligono.length >= 3) {
+        datos.poligono = aWkt(r.poligono);
+        if (r.area != null) datos.area = Math.round(r.area * 10) / 10;
+      }
+      if (r.lat != null) { datos.lat = r.lat; datos.lon = r.lon; }
+      if (r.precision != null) datos.precision = Math.round(r.precision);
+      if (r.altitud != null) datos.altitud = Math.round(r.altitud);
+      let resp;
+      try {
+        resp = await fetch(CONFIG.URL_SCRIPT, { method: 'POST', body: JSON.stringify(datos) });
+      } catch (e) {
+        break; // se perdió la señal: se reintenta después
+      }
+      const res = await resp.json().catch(() => null);
+      if (res && res.ok) {
+        r.estado = 'ENVIADO';
+        r.error = '';
+        r.fotosEnviadas = (r.fotos || []).length;
+        r.fotos = []; // libera espacio: las fotos ya están en Drive
+        enviados++;
+      } else {
+        r.error = (res && res.error) || `Respuesta inesperada del servidor (${resp.status})`;
+        conError++;
+      }
+      await Reg.guardar(r);
+    }
+  } finally {
+    sincronizando = false;
+  }
+  if (enviados) aviso(enviados === 1 ? '1 registro enviado' : `${enviados} registros enviados`);
+  else if (conError && manual) aviso('No se pudo enviar. Revisa el error en Registros.');
+  dibujarRegistros();
+  if (!$('#vistaLista').hidden) pintarLista();
+}
+
+// ============================================================
+//  MAPA SIN INTERNET
+// ============================================================
+function tileX(lon, z) { return Math.floor((lon + 180) / 360 * 2 ** z); }
+function tileY(lat, z) {
+  const r = lat * Math.PI / 180;
+  return Math.floor((1 - Math.log(Math.tan(r) + 1 / Math.cos(r)) / Math.PI) / 2 * 2 ** z);
+}
+async function guardarZona() {
+  if (!navigator.onLine) { aviso('Necesitas internet para guardar el mapa'); return; }
+  if (!('caches' in window)) { aviso('Este navegador no permite guardar mapas'); return; }
+  const b = mapa.getBounds();
+  const zMin = Math.max(8, Math.floor(mapa.getZoom()) - 2);
+  const zMax = Math.min(CAPAS[capaActual].max, 18);
+  const urls = [];
+  for (let z = zMin; z <= zMax; z++) {
+    for (let x = tileX(b.getWest(), z); x <= tileX(b.getEast(), z); x++) {
+      for (let y = tileY(b.getNorth(), z); y <= tileY(b.getSouth(), z); y++) {
+        urls.push(L.Util.template(PLANTILLAS[capaActual], { x, y, z }));
+      }
+    }
+  }
+  const mb = Math.round(urls.length * 0.025);
+  if (urls.length > 6000) { aviso('La zona es muy grande. Acerca más el mapa y vuelve a intentar.', 5000); return; }
+  if (!confirm(`Se guardará la capa «${CAPAS[capaActual].nombre}» de la zona visible (${urls.length} imágenes, unos ${mb} MB). ¿Continuar?`)) return;
+  cerrarModal('#modalAjustes');
+  const cache = await caches.open('mapa-v1');
+  let hechos = 0, fallos = 0, i = 0;
+  const trabajador = async () => {
+    while (i < urls.length) {
+      const u = urls[i++];
+      try {
+        if (!(await cache.match(u))) {
+          const r = await fetch(u, { mode: 'cors' });
+          if (r.ok) await cache.put(u, r); else fallos++;
+        }
+      } catch (e) { fallos++; }
+      hechos++;
+      if (hechos % 25 === 0) aviso(`Guardando mapa… ${Math.round(hechos * 100 / urls.length)} %`, 2000);
+    }
+  };
+  await Promise.all(Array.from({ length: 6 }, trabajador));
+  aviso(fallos ? `Mapa guardado (${fallos} imágenes no se pudieron bajar)` : 'Mapa de la zona guardado para usar sin internet', 4500);
+}
+async function borrarMapas() {
+  if (!confirm('¿Borrar todos los mapas guardados en el teléfono?')) return;
+  if ('caches' in window) await caches.delete('mapa-v1');
+  aviso('Mapas guardados borrados');
+  mostrarEspacio();
+}
+async function mostrarEspacio() {
+  let t = '';
+  if (navigator.storage && navigator.storage.estimate) {
+    const e = await navigator.storage.estimate();
+    t = `Espacio usado por la app (mapas, fotos y registros): ${Math.round((e.usage || 0) / 1048576)} MB`;
+  }
+  $('#ajEspacio').textContent = t;
+  $('#gdEspacio').textContent = t;
+}
+function abrirGuardados() {
+  mostrarEspacio();
+  abrirModal('#modalGuardados');
+}
+
+// ============================================================
+//  VENTANAS
+// ============================================================
+function abrirModal(id) { abrirCapa(id); }
+function cerrarModal(id) {
+  if (pila[pila.length - 1] === id) history.back();
+}
+document.querySelectorAll('.modal').forEach((m) => {
+  m.addEventListener('click', (e) => { if (e.target === m) cerrarModal('#' + m.id); });
+  m.querySelectorAll('[data-cerrar]').forEach((b) => b.addEventListener('click', () => cerrarModal('#' + m.id)));
+});
+const DETALLES_CAPA = {
+  satelite: '© Esri, Maxar · el más detallado',
+  clarity: '© Esri · más nítido y con menos nubes',
+  sentinel: '© Copernicus/EOX · el más reciente, poco detalle',
+  calles: '© OpenStreetMap · calles y poblados',
+  topo: '© OpenTopoMap · curvas de nivel'
+};
+/** Panel "Mapas" estilo Gaia: guardar sin internet y elegir el mapa de base. */
+function abrirCapas() {
+  const desdeParcela = pila.includes('#vistaParcela');
+  $('#botonesMapas').hidden = desdeParcela;
+  const z = 14, x = tileX(-91.183, z), y = tileY(14.773, z);   // miniatura: Sololá (tierra firme, no el lago)
+  $('#listaCapas').innerHTML = Object.entries(CAPAS).map(([k, c]) => {
+    const activa = k === capaActual;
+    const mini = L.Util.template(PLANTILLAS[k], { x, y, z });
+    return `<button class="capa-item${activa ? ' activa' : ''}" data-capa="${k}">` +
+      `<img src="${mini}" alt="" loading="lazy" onerror="this.style.opacity=0">` +
+      `<span><b>${c.nombre}</b><small>${activa ? '✓ En uso · ' : ''}${DETALLES_CAPA[k] || ''}</small></span></button>`;
+  }).join('');
+  $('#listaCapas').querySelectorAll('button').forEach((b) => b.addEventListener('click', () => {
+    if (b.dataset.capa !== capaActual) { ponerCapa(b.dataset.capa); aviso(CAPAS[b.dataset.capa].nombre); }
+    cerrarModal('#modalCapas');
+  }));
+  abrirModal('#modalCapas');
+}
+
+// ============================================================
+//  PARCELA (POLÍGONO) – pantalla "Editar el área"
+// ============================================================
+const M2_CUERDA_DEFECTO = 628.9;   // 30 × 30 varas
+function m2PorCuerda() { return parseFloat(localStorage.getItem('m2_cuerda')) || M2_CUERDA_DEFECTO; }
+function areaPoligono(p) {
+  if (!p || p.length < 3) return 0;
+  const R = 6378137, rad = Math.PI / 180;
+  let s = 0;
+  for (let i = 0; i < p.length; i++) {
+    const a = p[i], b = p[(i + 1) % p.length];
+    s += (b[1] - a[1]) * rad * (2 + Math.sin(a[0] * rad) + Math.sin(b[0] * rad));
+  }
+  return Math.abs(s * R * R / 2);
+}
+function distanciaP(a, b) { return L.latLng(a[0], a[1]).distanceTo(L.latLng(b[0], b[1])); }
+function perimetro(p) {
+  if (p.length < 2) return 0;
+  let t = 0;
+  for (let i = 0; i < p.length; i++) t += distanciaP(p[i], p[(i + 1) % p.length]);
+  return t;
+}
+function centroP(p) {
+  return [p.reduce((s, x) => s + x[0], 0) / p.length, p.reduce((s, x) => s + x[1], 0) / p.length];
+}
+function seCruzan(p) {
+  const n = p.length;
+  if (n < 4) return false;
+  const giro = (a, b, c) => (c[0] - a[0]) * (b[1] - a[1]) > (b[0] - a[0]) * (c[1] - a[1]);
+  const cruza = (a, b, c, d) => giro(a, c, d) !== giro(b, c, d) && giro(a, b, c) !== giro(a, b, d);
+  for (let i = 0; i < n; i++) for (let j = i + 1; j < n; j++) {
+    if (j === i + 1 || (i === 0 && j === n - 1)) continue;
+    if (cruza(p[i], p[(i + 1) % n], p[j], p[(j + 1) % n])) return true;
+  }
+  return false;
+}
+function aWkt(p) {
+  if (!p || p.length < 3) return '';
+  return 'POLYGON((' + [...p, p[0]].map((x) => `${x[1].toFixed(7)} ${x[0].toFixed(7)}`).join(', ') + '))';
+}
+function textoArea(m2) {
+  const c = `${(m2 / m2PorCuerda()).toFixed(2)} cuerdas`;
+  const h = `${(m2 / 10000).toFixed(4)} ha`;
+  const m = `${Math.round(m2).toLocaleString('en-US')} m²`;
+  const u = PREF.unidad();
+  return (u === 'ha' ? [h, c, m] : u === 'm2' ? [m, c, h] : [c, h, m]).join(' · ');
+}
+
+function abrirParcela(origen, puntos, centro) {
+  P.origen = origen;
+  P.puntos = (puntos || []).map((x) => [x[0], x[1]]);
+  P.deshacer = []; P.rehacer = []; P.cambios = false;
+  cerrarPunto(); cerrarMenu();
+  abrirCapa('#vistaParcela');
+  if (!P.mapa) {
+    P.mapa = L.map('mapaParcela', { zoomControl: false, maxZoom: 22 });
+    P.mapa.attributionControl.setPrefix(false);
+    L.control.scale({ imperial: false, position: 'topright', maxWidth: 100 }).addTo(P.mapa);
+    P.capa = L.layerGroup().addTo(P.mapa);
+    P.mapa.on('click', (e) => agregarTocando([e.latlng.lat, e.latlng.lng]));
+    P.mapa.on('zoomend', dibujarParcela);
+  }
+  if (!P.base) P.base = crearCapa(capaActual).addTo(P.mapa);
+  setTimeout(() => {
+    P.mapa.invalidateSize();
+    if (P.puntos.length >= 2) P.mapa.fitBounds(L.latLngBounds(P.puntos).pad(0.6));
+    else if (P.puntos.length === 1) P.mapa.setView(P.puntos[0], 19);
+    else if (centro) P.mapa.setView(centro, 19);
+    else if (ultimaPos) P.mapa.setView([ultimaPos.lat, ultimaPos.lon], 19);
+    else P.mapa.setView(CONFIG.CENTRO, 15);
+    dibujarParcela();
+  }, 60);
+}
+
+function recordarParcela() {
+  P.deshacer.push(P.puntos.map((x) => x.slice()));
+  if (P.deshacer.length > 60) P.deshacer.shift();
+  P.rehacer = [];
+  P.cambios = true;
+}
+
+/** Tocando el mapa: la esquina se mete en el lado más cercano para que las líneas no se crucen. */
+function agregarTocando(pt) {
+  recordarParcela();
+  const p = P.puntos;
+  if (p.length < 3) p.push(pt);
+  else {
+    let mejor = p.length, costo = Infinity;
+    for (let i = 0; i < p.length; i++) {
+      const a = p[i], b = p[(i + 1) % p.length];
+      const c = distanciaP(a, pt) + distanciaP(pt, b) - distanciaP(a, b);
+      if (c < costo) { costo = c; mejor = i + 1; }
+    }
+    p.splice(mejor, 0, pt);
+  }
+  dibujarParcela();
+}
+
+/** Caminando: la esquina se agrega en el orden en que se recorre el borde. */
+function esquinaConGps() {
+  if (!ultimaPos) { aviso('Buscando señal GPS… espera un momento en campo abierto'); return; }
+  const prec = Math.round(ultimaPos.precision);
+  if (prec > PREF.umbral() && !confirm(`El GPS tiene ±${prec} m de error y tu mínimo es ${PREF.umbral()} m: sal a campo abierto y espera. ¿Agregar la esquina de todas formas?`)) return;
+  recordarParcela();
+  P.puntos.push([ultimaPos.lat, ultimaPos.lon]);
+  dibujarParcela();
+  aviso(`Esquina ${P.puntos.length} agregada (±${prec} m)`);
+}
+
+function deshacerParcela() {
+  if (!P.deshacer.length) { aviso('No hay nada que deshacer'); return; }
+  P.rehacer.push(P.puntos.map((x) => x.slice()));
+  P.puntos = P.deshacer.pop();
+  dibujarParcela();
+}
+function rehacerParcela() {
+  if (!P.rehacer.length) { aviso('No hay nada que rehacer'); return; }
+  P.deshacer.push(P.puntos.map((x) => x.slice()));
+  P.puntos = P.rehacer.pop();
+  dibujarParcela();
+}
+
+function dibujarParcela() {
+  if (!P.mapa) return;
+  P.capa.clearLayers();
+  P.figura = null;
+  const p = P.puntos, n = p.length;
+  if (n >= 3) P.figura = L.polygon(p, { color: '#E0AD4B', weight: 3.5, fillOpacity: .2, interactive: false }).addTo(P.capa);
+  else if (n === 2) P.figura = L.polyline(p, { color: '#E0AD4B', weight: 3.5, interactive: false }).addTo(P.capa);
+
+  const lados = n >= 3 ? n : n - 1;
+  for (let i = 0; i < lados; i++) {
+    const a = p[i], b = p[(i + 1) % n];
+    const medio = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
+    const pa = P.mapa.latLngToContainerPoint(a), pb = P.mapa.latLngToContainerPoint(b);
+    if (pa.distanceTo(pb) > 70) {
+      let ang = Math.atan2(pb.y - pa.y, pb.x - pa.x) * 180 / Math.PI;
+      if (ang > 90) ang -= 180;
+      if (ang < -90) ang += 180;
+      L.marker(medio, { interactive: false, keyboard: false, icon: L.divIcon({ className: 'etiqueta-lado', iconSize: [0, 0],
+        html: `<span style="transform: translate(-50%, -50%) rotate(${ang}deg) translateY(-13px)">${Math.round(distanciaP(a, b))} m</span>` }) }).addTo(P.capa);
+    }
+    // Punto medio: al arrastrarlo se crea una esquina nueva en ese lado
+    const m = L.marker(medio, { draggable: true, bubblingMouseEvents: false, keyboard: false,
+      icon: L.divIcon({ className: 'medio-caja', iconSize: [32, 32], html: '<div class="medio"></div>' }) }).addTo(P.capa);
+    let nuevo = -1;
+    m.on('dragstart', () => { recordarParcela(); P.puntos.splice(i + 1, 0, medio.slice()); nuevo = i + 1; });
+    m.on('drag', (ev) => { const ll = ev.target.getLatLng(); P.puntos[nuevo] = [ll.lat, ll.lng]; figuraRapida(); });
+    m.on('dragend', dibujarParcela);
+  }
+  p.forEach((pt, i) => {
+    const m = L.marker(pt, { draggable: true, bubblingMouseEvents: false, keyboard: false,
+      icon: L.divIcon({ className: 'vertice-caja', iconSize: [40, 40], html: '<div class="vertice"></div>' }) }).addTo(P.capa);
+    m.on('dragstart', () => { recordarParcela(); const el = m.getElement(); if (el) el.classList.add('activo'); });
+    m.on('drag', (ev) => { const ll = ev.target.getLatLng(); P.puntos[i] = [ll.lat, ll.lng]; figuraRapida(); });
+    m.on('dragend', dibujarParcela);
+  });
+  estadoParcela();
+}
+
+/** Mientras se arrastra: solo se mueve la figura (los puntos se rehacen al soltar). */
+function figuraRapida() {
+  if (P.figura) P.figura.setLatLngs(P.puntos);
+  estadoParcela();
+}
+
+function estadoParcela() {
+  $('#parAyuda').hidden = P.puntos.length > 0;
+  $('#parGps').textContent = ultimaPos ? `GPS ±${Math.round(ultimaPos.precision)} m` : 'GPS buscando…';
+  const t = $('#parTexto');
+  if (P.puntos.length < 3) {
+    const n = P.puntos.length;
+    t.textContent = n ? `Zona no válida · ${n} ${n === 1 ? 'punto' : 'puntos'}` : 'Zona no válida';
+    t.style.color = '#E5534B';
+  }
+  else if (seCruzan(P.puntos)) { t.textContent = 'Zona no válida: las líneas se cruzan'; t.style.color = '#E5534B'; }
+  else {
+    const a = areaPoligono(P.puntos);
+    t.innerHTML = `<small>${P.puntos.length} puntos · ${Math.round(perimetro(P.puntos))} m</small>${(a / m2PorCuerda()).toFixed(2)} cuerdas · ${(a / 10000).toFixed(4)} ha`;
+    t.style.color = '#fff';
+  }
+}
+
+function guardarParcela() {
+  if (P.puntos.length > 0 && P.puntos.length < 3) { aviso('Zona no válida: una parcela necesita al menos 3 esquinas'); return; }
+  if (seCruzan(P.puntos)) { aviso('Zona no válida: arrastra las esquinas para que las líneas no se crucen'); return; }
+  const puntos = P.puntos.map((x) => x.slice());
+  const area = areaPoligono(puntos);
+  const origen = P.origen;
+  P.cambios = false;
+  volver();
+  if (origen === 'form') aplicarParcelaAlForm(puntos, area);
+  else if (puntos.length >= 3) setTimeout(() => abrirForm(null, null, false, { puntos, area }), 200);
+}
+
+function cancelarParcela() {
+  if (P.cambios && !confirm('¿Salir sin guardar los cambios de la parcela?')) return;
+  P.cambios = false;
+  volver();
+}
+
+function aplicarParcelaAlForm(puntos, area) {
+  leerCampos();
+  F.poligono = puntos;
+  if (puntos.length >= 3) {
+    F.area = area;
+    F.cuerdas = (area / m2PorCuerda()).toFixed(2);
+    $('#fCuerdas').value = F.cuerdas;
+    if (F.lat == null) {
+      const c = centroP(puntos);
+      F.lat = c[0]; F.lon = c[1]; F.precision = null; F.altitud = null;
+      pintarGps();
+    }
+  } else {
+    F.area = null;
+  }
+  guardarSiHayDatos();
+  pintarParcela();
+}
+
+function pintarParcela() {
+  const pts = F.poligono || [];
+  const n = pts.length;
+  if (n >= 3) {
+    const a = F.area || areaPoligono(pts);
+    $('#fParcelaInfo').innerHTML = `<b style="color:var(--crema)">Polígono de ${n} puntos · perímetro ${Math.round(perimetro(pts))} m</b>` +
+      '<span class="tiles-area">' +
+      `<span class="tile"><b>${(a / m2PorCuerda()).toFixed(2)}</b><small>cuerdas</small></span>` +
+      `<span class="tile"><b>${(a / 10000).toFixed(4)}</b><small>hectáreas</small></span>` +
+      `<span class="tile"><b>${Math.round(a).toLocaleString('en-US')}</b><small>m²</small></span></span>`;
+    $('#fParcela').textContent = 'Ver o editar parcela';
+    // Todos los puntos del polígono, uno por fila
+    $('#fListaPuntos').innerHTML =
+      '<div class="fila-punto encabezado"><span>Punto</span><span>Latitud</span><span>Longitud</span></div>' +
+      pts.map((p, i) => `<div class="fila-punto"><b>${i + 1}</b><span>${p[0].toFixed(6)}</span><span>${p[1].toFixed(6)}</span></div>`).join('');
+  } else {
+    $('#fParcelaInfo').textContent = 'Sin parcela dibujada';
+    $('#fParcela').textContent = 'Dibujar parcela';
+    $('#fListaPuntos').innerHTML = '';
+  }
+}
+
+function elegirCuerda() {
+  const actual = m2PorCuerda();
+  const opciones = [[628.9, '30 × 30 varas (629 m²)'], [436.7, '25 × 25 varas (437 m²)'], [1118, '40 × 40 varas (1,118 m²)'], ['otra', 'Otra medida (escribir m²)']];
+  $('#listaCuerdas').innerHTML = opciones.map(([v, t]) =>
+    `<button class="opcion" data-v="${v}"><span class="marca">${v !== 'otra' && Math.abs(v - actual) < 1 ? '✓' : ''}</span>${t}</button>`).join('');
+  $('#listaCuerdas').querySelectorAll('button').forEach((b) => b.addEventListener('click', () => {
+    let v = b.dataset.v;
+    if (v === 'otra') {
+      v = numero(prompt('¿Cuántos metros cuadrados tiene una cuerda?', String(actual)));
+      if (!v || v <= 0) { aviso('Escribe un número válido'); return; }
+    } else v = Number(v);
+    localStorage.setItem('m2_cuerda', String(v));
+    aviso(`Cuerda de ${Math.round(v)} m²`);
+    cerrarModal('#modalCuerda');
+  }));
+  abrirModal('#modalCuerda');
+}
+
+// ============================================================
+//  AJUSTES
+// ============================================================
+function haceCuanto(ms) {
+  const min = Math.round(ms / 60000);
+  if (min < 1) return 'hace un momento';
+  if (min < 60) return `hace ${min} min`;
+  const h = Math.round(min / 60);
+  if (h < 24) return `hace ${h} h`;
+  const d = Math.round(h / 24);
+  return d === 1 ? 'hace 1 día' : `hace ${d} días`;
+}
+function pintarInfoLista() {
+  const f = Number(localStorage.getItem('lista_fecha'));
+  const n = localStorage.getItem('lista_total');
+  $('#ajListaInfo').textContent = f
+    ? `Última actualización: ${haceCuanto(Date.now() - f)}${n ? ` · ${n} beneficiarios` : ''}`
+    : 'Todavía no se ha descargado';
+}
+function abrirAjustes() {
+  $('#ajTecnico').value = localStorage.getItem('tecnico') || '';
+  pintarInfoLista();
+  $('#ajCuerdaInfo').textContent = `${Math.round(m2PorCuerda())} m² por cuerda`;
+  $('#ajUnidad').value = PREF.unidad();
+  $('#ajPrecision').value = String(PREF.umbral());
+  let contacto = '';
+  if (CONFIG.SOPORTE_WHATSAPP) contacto += `<br>Soporte: <a href="https://wa.me/${CONFIG.SOPORTE_WHATSAPP}" target="_blank" rel="noopener">WhatsApp</a>`;
+  if (CONFIG.SOPORTE_CORREO) contacto += `${CONFIG.SOPORTE_WHATSAPP ? ' · ' : '<br>Soporte: '}<a href="mailto:${CONFIG.SOPORTE_CORREO}">${CONFIG.SOPORTE_CORREO}</a>`;
+  $('#ajAcerca').innerHTML = `<b>Wellkind GPS</b> · versión ${VERSION_APP}<br>Wellkind Guatemala${contacto}`;
+  mostrarEspacio();
+  abrirModal('#modalAjustes');
+}
+
+async function quitarEnviados() {
+  const enviados = (await Reg.todos()).filter((r) => r.estado === 'ENVIADO');
+  if (!enviados.length) { aviso('No hay registros enviados en este teléfono'); return; }
+  if (!confirm(`Se quitarán ${enviados.length} registro(s) ya enviados de este teléfono. Siguen guardados en el Google Sheet. ¿Continuar?`)) return;
+  for (const r of enviados) await Reg.borrar(r.id);
+  aviso(`${enviados.length} registro(s) quitados del teléfono`);
+  dibujarRegistros();
+  mostrarEspacio();
+}
+
+async function borrarTodosLosRegistros() {
+  const todos = await Reg.todos();
+  if (!todos.length) { aviso('No hay registros en este teléfono'); return; }
+  const pend = todos.filter((r) => r.estado === 'PENDIENTE').length;
+  const borr = todos.filter((r) => r.estado === 'BORRADOR').length;
+  let msg = `Se borrarán los ${todos.length} registros de este teléfono.`;
+  if (pend || borr) msg += `\n\n⚠ ${pend} pendientes y ${borr} borradores NO están en el Google Sheet y se perderán.`;
+  msg += '\n\nLos registros ya enviados siguen guardados en el Sheet. ¿Continuar?';
+  if (!confirm(msg)) return;
+  if ((pend || borr) && !confirm('¿Seguro? Esta acción no se puede deshacer.')) return;
+  for (const r of todos) await Reg.borrar(r.id);
+  aviso('Registros borrados del teléfono');
+  dibujarRegistros();
+  mostrarEspacio();
+}
+
+async function descargarRespaldo(formato) {
+  const todos = await Reg.todos();
+  if (!todos.length) { aviso('No hay registros en este teléfono'); return; }
+  const fecha = ahora().replace(/[: ]/g, '-');
+  let contenido, tipo, nombre;
+  if (formato === 'csv') {
+    const cols = ['id', 'fecha', 'estado', 'tecnico', 'beneficiario_id', 'nombre', 'comunidad', 'dpi', 'cuerdas',
+      'area_m2', 'area_ha', 'latitud', 'longitud', 'precision_m', 'altitud_m', 'observaciones', 'fotos', 'poligono_wkt'];
+    const esc = (v) => { const t = String(v ?? ''); return /[",\n;]/.test(t) ? '"' + t.replace(/"/g, '""') + '"' : t; };
+    const filas = todos.map((r) => [
+      r.id, r.fechaCaptura, ESTADOS[r.estado].texto, r.tecnico, r.beneficiarioId, r.nombre, r.comunidad, r.dpi, r.cuerdas,
+      r.area != null ? Math.round(r.area * 10) / 10 : '', r.area != null ? (r.area / 10000).toFixed(4) : '',
+      r.lat ?? '', r.lon ?? '', r.precision != null ? Math.round(r.precision) : '', r.altitud != null ? Math.round(r.altitud) : '',
+      r.descripcion, (r.fotos || []).length || r.fotosEnviadas || 0, aWkt(r.poligono || [])
+    ].map(esc).join(','));
+    contenido = '\ufeff' + cols.join(',') + '\n' + filas.join('\n');
+    tipo = 'text/csv';
+    nombre = `wellkind-respaldo-${fecha}.csv`;
+  } else {
+    const features = todos.filter((r) => r.lat != null || (r.poligono || []).length >= 3).map((r) => ({
+      type: 'Feature',
+      geometry: (r.poligono || []).length >= 3
+        ? { type: 'Polygon', coordinates: [[...r.poligono, r.poligono[0]].map((p) => [p[1], p[0]])] }
+        : { type: 'Point', coordinates: [r.lon, r.lat] },
+      properties: {
+        id: r.id, fecha: r.fechaCaptura, estado: ESTADOS[r.estado].texto, tecnico: r.tecnico,
+        beneficiario_id: r.beneficiarioId, nombre: r.nombre, comunidad: r.comunidad, dpi: r.dpi, cuerdas: r.cuerdas,
+        area_m2: r.area != null ? Math.round(r.area * 10) / 10 : null, area_ha: r.area != null ? Number((r.area / 10000).toFixed(4)) : null,
+        latitud: r.lat, longitud: r.lon, observaciones: r.descripcion
+      }
+    }));
+    contenido = JSON.stringify({ type: 'FeatureCollection', features }, null, 1);
+    tipo = 'application/geo+json';
+    nombre = `wellkind-respaldo-${fecha}.geojson`;
+  }
+  const blob = new Blob([contenido], { type: tipo });
+  try {
+    const archivo = new File([blob], nombre, { type: tipo });
+    if (navigator.canShare && navigator.canShare({ files: [archivo] })) {
+      await navigator.share({ files: [archivo], title: nombre });
+      return;
+    }
+  } catch (e) {
+    if (e && e.name === 'AbortError') return;
+  }
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = nombre;
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1500);
+  aviso('Respaldo descargado: ' + nombre);
+}
+
+// ============================================================
+//  EVENTOS
+// ============================================================
+$('#btnCapas').onclick = abrirCapas;
+$('#btnCentrar').onclick = centrarEnMi;
+$('#btnFab').onclick = () => ($('#menuFab').hidden ? abrirMenu() : cerrarMenu());
+$('#opMiUbicacion').onclick = () => { cerrarMenu(); marcarMiUbicacion(); };
+$('#btnGuardarPunto').onclick = () => { const p = puntoMarcado; if (p) abrirForm(null, p); };
+$('#btnCompartir').onclick = compartirPunto;
+$('#btnCerrarPunto').onclick = cerrarPunto;
+
+$('#navMapa').onclick = () => { cerrarTodo(); cerrarPunto(); cerrarMenu(); marcarNav('#navMapa'); };
+$('#navRegistros').onclick = () => {
+  if (pila.length && pila[pila.length - 1] === '#vistaLista') return;
+  cerrarTodo(abrirLista);
+};
+$('#navEnviar').onclick = () => sincronizar(true);
+$('#navAjustes').onclick = () => {
+  if (pila.includes('#modalAjustes') || pila.includes('#vistaParcela')) return;
+  abrirAjustes();
+};
+
+$('#formVolver').onclick = volver;
+$('#listaVolver').onclick = volver;
+$('#listaEnviar').onclick = () => sincronizar(true);
+$('#listaReg').onclick = (e) => { const li = e.target.closest('li[data-id]'); if (li) abrirForm(li.dataset.id); };
+
+$('#fElegir').onclick = abrirSelector;
+$('#fGps').onclick = () => (gpsForm.activo ? fijarPunto() : iniciarGpsForm());
+$('#fCamara').onclick = () => { if (F.fotos.length >= CONFIG.MAX_FOTOS) aviso(`Máximo ${CONFIG.MAX_FOTOS} fotos por registro`); else $('#inCamara').click(); };
+$('#fGaleria').onclick = () => { if (F.fotos.length >= CONFIG.MAX_FOTOS) aviso(`Máximo ${CONFIG.MAX_FOTOS} fotos por registro`); else $('#inGaleria').click(); };
+$('#inCamara').onchange = (e) => { agregarFotos(e.target.files); e.target.value = ''; };
+$('#inGaleria').onchange = (e) => { agregarFotos(e.target.files); e.target.value = ''; };
+$('#fListo').onclick = marcarListo;
+$('#fBorrador').onclick = guardarBorrador;
+$('#fEliminar').onclick = eliminar;
+
+['#fNombre', '#fComunidad', '#fDpi', '#fCuerdas', '#fTecnico', '#fObs', '#fLat', '#fLon'].forEach((s) => {
+  $(s).addEventListener('input', () => {
+    if (s === '#fComunidad') pintarBeneficiario();
+    clearTimeout(autoguardado);
+    autoguardado = setTimeout(guardarSiHayDatos, 800);
+  });
+});
+
+$('#ajLista').onclick = () => { cerrarModal('#modalAjustes'); actualizarLista(true); };
+$('#mpGuardar').onclick = () => { cerrarModal('#modalCapas'); setTimeout(guardarZona, 200); };
+$('#mpGuardados').onclick = () => { cerrarModal('#modalCapas'); setTimeout(abrirGuardados, 200); };
+$('#gdGuardar').onclick = () => { cerrarModal('#modalGuardados'); setTimeout(guardarZona, 200); };
+$('#gdBorrar').onclick = borrarMapas;
+$('#ajCuerda').onclick = () => { cerrarModal('#modalAjustes'); setTimeout(elegirCuerda, 200); };
+$('#ajTecnico').addEventListener('input', (e) => localStorage.setItem('tecnico', e.target.value.trim()));
+$('#ajUnidad').onchange = (e) => { localStorage.setItem('unidad_area', e.target.value); aviso('Unidad de área guardada'); };
+$('#ajPrecision').onchange = (e) => { localStorage.setItem('umbral_gps', e.target.value); aviso(`Precisión mínima: ${e.target.value} m`); };
+$('#ajLimpiar').onclick = quitarEnviados;
+$('#ajBorrarTodo').onclick = borrarTodosLosRegistros;
+$('#ajCsv').onclick = () => descargarRespaldo('csv');
+$('#ajGeojson').onclick = () => descargarRespaldo('geojson');
+$('#opParcela').onclick = () => {
+  cerrarMenu();
+  const c = ultimaPos ? [ultimaPos.lat, ultimaPos.lon] : [mapa.getCenter().lat, mapa.getCenter().lng];
+  abrirParcela('mapa', [], c);
+};
+$('#fParcela').onclick = () => {
+  leerCampos();
+  guardarSiHayDatos();
+  abrirParcela('form', F.poligono, F.lat != null ? [F.lat, F.lon] : null);
+};
+$('#parGuardar').onclick = guardarParcela;
+$('#parCancelar').onclick = cancelarParcela;
+$('#parGpsBtn').onclick = esquinaConGps;
+$('#parRehacer').onclick = rehacerParcela;
+$('#parCapas').onclick = abrirCapas;
+$('#parCentrar').onclick = () => {
+  if (ultimaPos) P.mapa.setView([ultimaPos.lat, ultimaPos.lon], Math.max(P.mapa.getZoom(), 19));
+  else aviso('Buscando señal GPS… sal a campo abierto');
+};
+// Deshacer: toque = deshacer · mantener presionado = borrar todo
+(function () {
+  const b = $('#parDeshacer');
+  let reloj = null, largo = false;
+  b.addEventListener('pointerdown', () => {
+    largo = false;
+    reloj = setTimeout(() => {
+      reloj = null; largo = true;
+      if (P.puntos.length && confirm('¿Borrar todas las esquinas de la parcela?')) { recordarParcela(); P.puntos = []; dibujarParcela(); }
+    }, 700);
+  });
+  ['pointerup', 'pointerleave', 'pointercancel'].forEach((ev) => b.addEventListener(ev, () => { if (reloj) { clearTimeout(reloj); reloj = null; } }));
+  b.addEventListener('click', () => { if (largo) { largo = false; return; } deshacerParcela(); });
+})();
+
+window.addEventListener('online', () => { sincronizar(false); actualizarLista(false); });
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') sincronizar(false); });
+setInterval(() => sincronizar(false), 60000);
+
+// ============================================================
+//  INICIO
+// ============================================================
+(async function inicio() {
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('sw.js').catch(() => {});
+  }
+  if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
+  iniciarUbicacion();
+  await dibujarRegistros();
+  actualizarLista(false);
+  sincronizar(false);
+})();
+</script>
+</body>
+</html>

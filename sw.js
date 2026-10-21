@@ -1,0 +1,84 @@
+/* Service worker: guarda la app y el mapa para usarlos sin internet */
+const VERSION = 'monitoreo-app-v18';
+const MAPA = 'mapa-v1';
+const APP = [
+  './',
+  './index.html',
+  './manifest.webmanifest',
+  './icon-192.png',
+  './icon-512.png',
+  './apple-touch-icon.png',
+  'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css',
+  'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js'
+];
+const HOSTS_MAPA = ['server.arcgisonline.com', 'clarity.maptiles.arcgis.com', 'tiles.maps.eox.at', 'tile.openstreetmap.org', 'a.tile.opentopomap.org'];
+
+self.addEventListener('install', (e) => {
+  // cache: 'reload' = siempre la versión más nueva del servidor, no la guardada por el navegador
+  e.waitUntil(
+    caches.open(VERSION)
+      .then((c) => Promise.all(APP.map((u) => fetch(new Request(u, { cache: 'reload' }))
+        .then((r) => (r.ok ? c.put(u, r) : null)).catch(() => null))))
+      .then(() => self.skipWaiting())
+  );
+});
+
+self.addEventListener('activate', (e) => {
+  e.waitUntil(
+    caches.keys()
+      .then((ks) => Promise.all(ks.filter((k) => k !== VERSION && k !== MAPA).map((k) => caches.delete(k))))
+      .then(() => self.clients.claim())
+  );
+});
+
+self.addEventListener('fetch', (e) => {
+  const req = e.request;
+  if (req.method !== 'GET') return;
+  const url = new URL(req.url);
+
+  // El envío y la lista de beneficiarios siempre van directo a Google
+  if (url.hostname.endsWith('google.com') || url.hostname.endsWith('googleusercontent.com')) return;
+
+  // Imágenes del mapa: primero lo guardado; si no, internet (y se guarda)
+  if (HOSTS_MAPA.includes(url.hostname)) {
+    e.respondWith(caches.open(MAPA).then(async (c) => {
+      const guardada = await c.match(req.url);
+      if (guardada) return guardada;
+      try {
+        const r = await fetch(req);
+        if (r.ok) c.put(req.url, r.clone());
+        return r;
+      } catch (err) {
+        return new Response('', { status: 504 });
+      }
+    }));
+    return;
+  }
+
+  // La página de la app: con internet SIEMPRE la versión nueva; sin internet, la guardada
+  if (req.mode === 'navigate') {
+    e.respondWith(
+      fetch(req, { cache: 'no-store' })
+        .then((r) => {
+          if (r.ok) { const copia = r.clone(); caches.open(VERSION).then((c) => c.put('./index.html', copia)); }
+          return r;
+        })
+        .catch(() => caches.match('./index.html').then((g) => g || caches.match('./')))
+    );
+    return;
+  }
+
+  // Lo demás (íconos, Leaflet): lo guardado primero y se actualiza en segundo plano
+  e.respondWith(
+    caches.match(req).then((guardada) => {
+      const red = fetch(req).then((r) => {
+        if (r.ok && (url.origin === self.location.origin || ['cdnjs.cloudflare.com', 'fonts.googleapis.com', 'fonts.gstatic.com'].includes(url.hostname))) {
+          const copia = r.clone();
+          caches.open(VERSION).then((c) => c.put(req, copia));
+        }
+        return r;
+      }).catch(() => guardada || Response.error());
+      return guardada || red;
+    })
+  );
+});
